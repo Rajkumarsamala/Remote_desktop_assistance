@@ -3,8 +3,8 @@ export const ICE_SERVERS = [
   { urls: "stun:stun.l.google.com:19302" }
 ]
 
-// Signaling Server URL - use relative path to work through Vite proxy
-export const SIGNALING_URL = '' // Vite proxy handles routing to ws://localhost:8765
+// Signaling Server URL - use wss:// for secure WebSocket over public internet
+export const SIGNALING_URL = 'wss://remote-view-signaling.onrender.com'
 
 // Message Types
 export const MSG_TYPES = {
