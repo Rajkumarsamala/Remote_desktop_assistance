@@ -24,6 +24,7 @@ export function useWebRTC() {
   const dataChannelRef = useRef(null)
   const screenRef = useRef(null)
   const inputEnabledRef = useRef(true)
+  const iceCandidateQueueRef = useRef([])
 
   /**
    * Connect to signaling server
@@ -105,10 +106,15 @@ export function useWebRTC() {
 
       case MSG_TYPES.ICE_CANDIDATE:
         if (msg.candidate) {
-          try {
-            await pcRef.current?.addIceCandidate(new RTCIceCandidate(msg.candidate))
-          } catch (e) {
-            console.error('[ICE] Add error:', e)
+          if (pcRef.current && pcRef.current.remoteDescription) {
+            try {
+              await pcRef.current.addIceCandidate(new RTCIceCandidate(msg.candidate))
+            } catch (e) {
+              console.error('[ICE] Add error:', e)
+            }
+          } else {
+            console.log('[ICE] Queuing candidate')
+            iceCandidateQueueRef.current.push(msg.candidate)
           }
         }
         break
@@ -225,18 +231,35 @@ export function useWebRTC() {
   }, [])
 
   /**
+   * Flush queued ICE candidates
+   */
+  const flushIceCandidates = useCallback(async () => {
+    if (pcRef.current && pcRef.current.remoteDescription) {
+      while (iceCandidateQueueRef.current.length > 0) {
+        const candidate = iceCandidateQueueRef.current.shift()
+        try {
+          await pcRef.current.addIceCandidate(new RTCIceCandidate(candidate))
+        } catch (e) {
+          console.error('[ICE] Queue add error:', e)
+        }
+      }
+    }
+  }, [])
+
+  /**
    * Handle incoming offer (client responds)
    */
   const handleOffer = useCallback(async (sdp) => {
     const pc = createPeer()
 
     await pc.setRemoteDescription(new RTCSessionDescription({ type: 'offer', sdp }))
+    await flushIceCandidates()
 
     const answer = await pc.createAnswer()
     await pc.setLocalDescription(answer)
 
     sendWsMessage(wsRef.current, MSG_TYPES.ANSWER, { sdp: answer.sdp })
-  }, [])
+  }, [createPeer, flushIceCandidates])
 
   /**
    * Handle incoming answer (host completes connection)
@@ -246,8 +269,9 @@ export function useWebRTC() {
       await pcRef.current.setRemoteDescription(
         new RTCSessionDescription({ type: 'answer', sdp })
       )
+      await flushIceCandidates()
     }
-  }, [])
+  }, [flushIceCandidates])
 
   /**
    * Send input event to host
@@ -401,6 +425,7 @@ export function useWebRTC() {
     setRemoteStream(null)
     setSessionCode(null)
     inputEnabledRef.current = true
+    iceCandidateQueueRef.current = []
   }, [])
 
   // Cleanup on unmount
