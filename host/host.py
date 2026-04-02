@@ -379,7 +379,8 @@ class HostApplication:
         import websockets
 
         try:
-            ws_url = f"ws://{self.signaling_host}:{self.signaling_port}/ws/host:{session_code}"
+            protocol = "wss" if self.signaling_port == 443 else "ws"
+            ws_url = f"{protocol}://{self.signaling_host}:{self.signaling_port}/ws/host:{session_code}"
             print(f"[*] Connecting to signaling server: {ws_url}")
 
             self.websocket = await websockets.connect(ws_url)
