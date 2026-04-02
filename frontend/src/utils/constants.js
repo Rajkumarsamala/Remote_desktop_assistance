@@ -5,6 +5,7 @@ export const ICE_SERVERS = [
 
 // Signaling Server URL - use wss:// for secure WebSocket over public internet
 export const SIGNALING_URL = 'wss://remote-view-signaling.onrender.com'
+export const API_URL = SIGNALING_URL.replace('wss://', 'https://').replace('ws://', 'http://')
 
 // Message Types
 export const MSG_TYPES = {

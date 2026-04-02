@@ -1,5 +1,5 @@
 import { useState, useRef, useCallback, useEffect } from 'react'
-import { SIGNALING_URL, MSG_TYPES, CONNECTION_STATE } from '../utils/constants'
+import { SIGNALING_URL, API_URL, MSG_TYPES, CONNECTION_STATE } from '../utils/constants'
 import {
   createPeerConnection,
   createDataChannel,
@@ -325,7 +325,7 @@ export function useWebRTC() {
     try {
       console.log('[Host] Creating session via: /create-session')
 
-      const response = await fetch('/create-session', {
+      const response = await fetch(`${API_URL}/create-session`, {
         method: 'POST',
       })
 
