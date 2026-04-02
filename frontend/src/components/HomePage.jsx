@@ -1,0 +1,176 @@
+import { motion } from 'framer-motion'
+import { Monitor, Users, Zap, Shield } from 'lucide-react'
+
+const features = [
+  {
+    icon: Monitor,
+    title: 'Screen Sharing',
+    description: 'Crystal clear real-time screen streaming',
+  },
+  {
+    icon: Users,
+    title: 'Remote Control',
+    description: 'Full mouse and keyboard control',
+  },
+  {
+    icon: Zap,
+    title: 'Low Latency',
+    description: 'WebRTC peer-to-peer connection',
+  },
+  {
+    icon: Shield,
+    title: 'Secure',
+    description: 'Encrypted communication',
+  },
+]
+
+const containerVariants = {
+  hidden: { opacity: 0 },
+  visible: {
+    opacity: 1,
+    transition: {
+      staggerChildren: 0.1,
+    },
+  },
+}
+
+const itemVariants = {
+  hidden: { opacity: 0, y: 20 },
+  visible: { opacity: 1, y: 0 },
+}
+
+function HomePage({ onStartHost, onJoinSession, isConnecting }) {
+  return (
+    <div className="min-h-screen flex flex-col items-center justify-center px-4 py-12">
+      {/* Background Orbs */}
+      <div className="fixed inset-0 overflow-hidden pointer-events-none">
+        <motion.div
+          className="absolute top-1/4 left-1/4 w-96 h-96 bg-accent-cyan/10 rounded-full blur-3xl"
+          animate={{
+            x: [0, 50, 0],
+            y: [0, 30, 0],
+          }}
+          transition={{ duration: 10, repeat: Infinity, ease: 'easeInOut' }}
+        />
+        <motion.div
+          className="absolute bottom-1/4 right-1/4 w-96 h-96 bg-accent-purple/10 rounded-full blur-3xl"
+          animate={{
+            x: [0, -50, 0],
+            y: [0, -30, 0],
+          }}
+          transition={{ duration: 10, repeat: Infinity, ease: 'easeInOut' }}
+        />
+      </div>
+
+      {/* Content */}
+      <motion.div
+        initial={{ opacity: 0, y: -30 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.6 }}
+        className="text-center mb-16 relative z-10"
+      >
+        {/* Logo */}
+        <motion.div
+          className="inline-flex items-center gap-3 mb-6"
+          initial={{ scale: 0 }}
+          animate={{ scale: 1 }}
+          transition={{ delay: 0.2, type: 'spring' }}
+        >
+          <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-accent-cyan to-accent-purple flex items-center justify-center glow-cyan">
+            <Monitor className="w-8 h-8 text-white" />
+          </div>
+        </motion.div>
+
+        {/* Title */}
+        <h1 className="text-6xl md:text-7xl font-bold mb-4">
+          <span className="gradient-text">RemoteView</span>
+        </h1>
+        <p className="text-xl text-white/60 max-w-md mx-auto">
+          Secure peer-to-peer remote desktop access. Share your screen or view a remote computer in real-time.
+        </p>
+      </motion.div>
+
+      {/* Action Buttons */}
+      <motion.div
+        variants={containerVariants}
+        initial="hidden"
+        animate="visible"
+        className="flex flex-col sm:flex-row gap-6 mb-20 relative z-10"
+      >
+        {/* Start Sharing Button */}
+        <motion.button
+          variants={itemVariants}
+          whileHover={{ scale: 1.02, y: -4 }}
+          whileTap={{ scale: 0.98 }}
+          onClick={onStartHost}
+          disabled={isConnecting}
+          className="group relative px-10 py-6 rounded-2xl overflow-hidden"
+        >
+          <div className="absolute inset-0 bg-gradient-to-r from-accent-cyan to-accent-purple opacity-100 group-hover:opacity-90 transition-opacity" />
+          <div className="absolute inset-0 bg-white/20 backdrop-blur-sm opacity-0 group-hover:opacity-100 transition-opacity" />
+          <div className="relative flex items-center gap-4">
+            <div className="w-12 h-12 rounded-xl bg-white/20 flex items-center justify-center">
+              <Monitor className="w-6 h-6 text-white" />
+            </div>
+            <div className="text-left">
+              <div className="text-xl font-bold text-white">Start Sharing</div>
+              <div className="text-sm text-white/70">Share your screen</div>
+            </div>
+          </div>
+        </motion.button>
+
+        {/* Join Session Button */}
+        <motion.button
+          variants={itemVariants}
+          whileHover={{ scale: 1.02, y: -4 }}
+          whileTap={{ scale: 0.98 }}
+          onClick={onJoinSession}
+          disabled={isConnecting}
+          className="group glass-strong px-10 py-6 rounded-2xl hover:bg-white/10 transition-all duration-300"
+        >
+          <div className="flex items-center gap-4">
+            <div className="w-12 h-12 rounded-xl bg-white/10 flex items-center justify-center group-hover:bg-accent-purple/30 transition-colors">
+              <Users className="w-6 h-6 text-white" />
+            </div>
+            <div className="text-left">
+              <div className="text-xl font-bold text-white">Join Session</div>
+              <div className="text-sm text-white/60">View remote screen</div>
+            </div>
+          </div>
+        </motion.button>
+      </motion.div>
+
+      {/* Features */}
+      <motion.div
+        variants={containerVariants}
+        initial="hidden"
+        animate="visible"
+        className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 max-w-4xl relative z-10"
+      >
+        {features.map((feature, index) => (
+          <motion.div
+            key={index}
+            variants={itemVariants}
+            className="glass rounded-2xl p-6 text-center hover:bg-white/5 transition-colors"
+          >
+            <feature.icon className="w-8 h-8 text-accent-cyan mx-auto mb-4" />
+            <h3 className="font-semibold text-white mb-2">{feature.title}</h3>
+            <p className="text-sm text-white/50">{feature.description}</p>
+          </motion.div>
+        ))}
+      </motion.div>
+
+      {/* Footer */}
+      <motion.div
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        transition={{ delay: 0.8 }}
+        className="mt-20 text-center text-white/30 text-sm"
+      >
+        Powered by WebRTC • End-to-end encrypted • No downloads required
+      </motion.div>
+    </div>
+  )
+}
+
+export default HomePage

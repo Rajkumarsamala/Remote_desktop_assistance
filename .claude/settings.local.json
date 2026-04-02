@@ -1,0 +1,23 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(python -m py_compile shared/constants.py shared/models.py signaling_server/session_manager.py signaling_server/server.py)",
+      "Bash(python -m py_compile host/host.py client/client.py)",
+      "Bash(python signaling_server/server.py)",
+      "Bash(./ngrok http:*)",
+      "Bash(./ngrok/ngrok.exe http:*)",
+      "Bash(npm install:*)",
+      "Bash(npm run:*)",
+      "Bash(curl:*)",
+      "Bash(python -c \"import host.host\")",
+      "Bash(python -m py_compile host/host.py)",
+      "Bash(python -c \"from aiortc import IceCandidate; print\\('OK: aiortc.IceCandidate'\\)\")",
+      "Bash(python -c \"from aiortc.contrib.ice import IceCandidate; print\\('OK: aiortc.contrib.ice.IceCandidate'\\)\")",
+      "Bash(python -m py_compile client/client.py)",
+      "Bash(python:*)",
+      "Bash(pkill -f \"python signaling_server/server.py\")",
+      "Bash(pkill -f \"python.*host.py\")",
+      "Bash(netstat -ano)"
+    ]
+  }
+}

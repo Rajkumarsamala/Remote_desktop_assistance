@@ -1,0 +1,682 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>RemoteView - Web Client</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
+            min-height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            color: #fff;
+        }
+
+        .container {
+            background: rgba(255, 255, 255, 0.05);
+            backdrop-filter: blur(10px);
+            border-radius: 20px;
+            padding: 40px;
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            max-width: 500px;
+            width: 90%;
+        }
+
+        h1 {
+            text-align: center;
+            margin-bottom: 30px;
+            font-size: 2.5rem;
+            background: linear-gradient(90deg, #00d4ff, #00ff88);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+
+        .tabs {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 30px;
+        }
+
+        .tab {
+            flex: 1;
+            padding: 15px;
+            background: rgba(255, 255, 255, 0.05);
+            border: none;
+            border-radius: 10px;
+            color: #fff;
+            cursor: pointer;
+            font-size: 1rem;
+            transition: all 0.3s ease;
+        }
+
+        .tab.active {
+            background: linear-gradient(135deg, #00d4ff 0%, #00ff88 100%);
+            color: #1a1a2e;
+            font-weight: bold;
+        }
+
+        .tab:hover:not(.active) {
+            background: rgba(255, 255, 255, 0.1);
+        }
+
+        .panel {
+            display: none;
+        }
+
+        .panel.active {
+            display: block;
+        }
+
+        .form-group {
+            margin-bottom: 20px;
+        }
+
+        label {
+            display: block;
+            margin-bottom: 8px;
+            color: #aaa;
+            font-size: 0.9rem;
+        }
+
+        input[type="text"] {
+            width: 100%;
+            padding: 15px;
+            background: rgba(0, 0, 0, 0.3);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 10px;
+            color: #fff;
+            font-size: 1.2rem;
+            text-align: center;
+            letter-spacing: 2px;
+            text-transform: uppercase;
+        }
+
+        input[type="text"]:focus {
+            outline: none;
+            border-color: #00d4ff;
+            box-shadow: 0 0 20px rgba(0, 212, 255, 0.2);
+        }
+
+        .btn {
+            width: 100%;
+            padding: 15px;
+            border: none;
+            border-radius: 10px;
+            font-size: 1rem;
+            font-weight: bold;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+
+        .btn-primary {
+            background: linear-gradient(135deg, #00d4ff 0%, #00ff88 100%);
+            color: #1a1a2e;
+        }
+
+        .btn-primary:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 20px rgba(0, 212, 255, 0.4);
+        }
+
+        .btn-secondary {
+            background: rgba(255, 255, 255, 0.1);
+            color: #fff;
+            margin-top: 10px;
+        }
+
+        .btn-secondary:hover {
+            background: rgba(255, 255, 255, 0.2);
+        }
+
+        .status {
+            padding: 15px;
+            border-radius: 10px;
+            margin-top: 20px;
+            text-align: center;
+            display: none;
+        }
+
+        .status.info {
+            background: rgba(0, 212, 255, 0.2);
+            border: 1px solid rgba(0, 212, 255, 0.3);
+            display: block;
+        }
+
+        .status.error {
+            background: rgba(255, 68, 68, 0.2);
+            border: 1px solid rgba(255, 68, 68, 0.3);
+            color: #ff6b6b;
+            display: block;
+        }
+
+        .status.success {
+            background: rgba(0, 255, 136, 0.2);
+            border: 1px solid rgba(0, 255, 136, 0.3);
+            color: #00ff88;
+            display: block;
+        }
+
+        .session-code {
+            font-size: 2rem;
+            font-weight: bold;
+            letter-spacing: 4px;
+            padding: 20px;
+            background: rgba(0, 0, 0, 0.3);
+            border-radius: 10px;
+            margin: 20px 0;
+            text-align: center;
+            border: 2px dashed rgba(0, 212, 255, 0.5);
+        }
+
+        .connection-info {
+            font-size: 0.85rem;
+            color: #888;
+            margin-top: 15px;
+            text-align: center;
+        }
+
+        #remoteScreen {
+            width: 100%;
+            border-radius: 10px;
+            background: #000;
+            display: none;
+        }
+
+        .remote-container {
+            display: none;
+        }
+
+        .remote-container.active {
+            display: block;
+        }
+
+        .controls {
+            display: flex;
+            gap: 10px;
+            margin-top: 15px;
+        }
+
+        .controls .btn {
+            flex: 1;
+        }
+
+        .latency {
+            font-size: 0.9rem;
+            color: #00ff88;
+            text-align: center;
+            margin-top: 10px;
+        }
+
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.5; }
+        }
+
+        .connecting {
+            animation: pulse 1.5s infinite;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>RemoteView</h1>
+
+        <div class="tabs">
+            <button class="tab active" onclick="showTab('host')">Share Screen</button>
+            <button class="tab" onclick="showTab('client')">View Remote</button>
+        </div>
+
+        <!-- Host Panel -->
+        <div id="hostPanel" class="panel active">
+            <div id="hostSetup">
+                <p style="text-align: center; color: #888; margin-bottom: 20px;">
+                    Share your screen with another user
+                </p>
+                <button class="btn btn-primary" onclick="createSession()">
+                    Generate Session Code
+                </button>
+
+                <div id="hostStatus" class="status"></div>
+
+                <div id="hostCodeDisplay" style="display: none;">
+                    <p style="text-align: center; color: #888; margin-top: 20px;">
+                        Share this code with the viewer:
+                    </p>
+                    <div class="session-code" id="hostCode"></div>
+                    <p class="connection-info" id="hostInfo">
+                        Waiting for viewer to connect...
+                    </p>
+                </div>
+            </div>
+
+            <div id="hostConnected" class="remote-container">
+                <p style="text-align: center; color: #00ff88; margin-bottom: 10px;">
+                    Viewer connected! Your screen is being shared.
+                </p>
+                <p class="connection-info" id="connectionStats"></p>
+                <div class="controls">
+                    <button class="btn btn-secondary" onclick="disconnectHost()">
+                        Stop Sharing
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Client Panel -->
+        <div id="clientPanel" class="panel">
+            <div id="clientSetup">
+                <p style="text-align: center; color: #888; margin-bottom: 20px;">
+                    Enter the session code to view remote screen
+                </p>
+                <div class="form-group">
+                    <label>Session Code</label>
+                    <input type="text" id="sessionCodeInput"
+                           placeholder="XXXX-XXXX"
+                           maxlength="9"
+                           oninput="formatCode(this)">
+                </div>
+                <button class="btn btn-primary" onclick="joinSession()">
+                    Connect
+                </button>
+
+                <div id="clientStatus" class="status"></div>
+            </div>
+
+            <div id="clientConnected" class="remote-container">
+                <video id="remoteScreen" autoplay playsinline></video>
+                <p class="latency" id="latencyDisplay"></p>
+                <div class="controls">
+                    <button class="btn btn-secondary" onclick="disconnectClient()">
+                        Disconnect
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Configuration
+        const SIGNALING_SERVER = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1'
+            ? `ws://${window.location.hostname}:8765`
+            : `ws://${window.location.hostname}:8765`;
+
+        const ICE_SERVERS = [
+            { urls: 'stun:stun.l.google.com:19302' },
+            { urls: 'stun:stun1.l.google.com:19302' },
+            { urls: 'stun:stun2.l.google.com:19302' }
+        ];
+
+        // State
+        let ws = null;
+        let peerConnection = null;
+        let sessionCode = null;
+        let isHost = false;
+        let dataChannel = null;
+        let remoteStream = null;
+        let startTime = null;
+
+        // Tab switching
+        function showTab(tab) {
+            document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+            document.querySelectorAll('.panel').forEach(p => p.classList.remove('active'));
+
+            if (tab === 'host') {
+                document.querySelector('.tab:nth-child(1)').classList.add('active');
+                document.getElementById('hostPanel').classList.add('active');
+            } else {
+                document.querySelector('.tab:nth-child(2)').classList.add('active');
+                document.getElementById('clientPanel').classList.add('active');
+            }
+        }
+
+        // Format session code input
+        function formatCode(input) {
+            let value = input.value.replace(/[^0-9]/g, '').substring(0, 8);
+            if (value.length > 4) {
+                value = value.substring(0, 4) + '-' + value.substring(4);
+            }
+            input.value = value.toUpperCase();
+        }
+
+        // WebSocket connection
+        function connectWebSocket() {
+            return new Promise((resolve, reject) => {
+                const wsUrl = `${SIGNALING_SERVER}/ws/${sessionCode}`;
+                ws = new WebSocket(wsUrl);
+
+                ws.onopen = () => {
+                    console.log('[WS] Connected');
+                    resolve();
+                };
+
+                ws.onerror = (error) => {
+                    console.error('[WS] Error:', error);
+                    reject(error);
+                };
+
+                ws.onclose = (event) => {
+                    console.log('[WS] Closed:', event.code, event.reason);
+                };
+
+                ws.onmessage = (event) => {
+                    handleMessage(JSON.parse(event.data));
+                };
+            });
+        }
+
+        // Handle incoming messages
+        async function handleMessage(msg) {
+            console.log('[MSG]', msg.type);
+
+            switch (msg.type) {
+                case 'host_registered':
+                    console.log('[+] Registered as host');
+                    updateStatus('hostStatus', 'success', 'Waiting for viewer to connect...', true);
+                    document.getElementById('hostInfo').textContent = 'Waiting for viewer to connect...';
+                    document.getElementById('hostInfo').classList.add('connecting');
+                    break;
+
+                case 'client_joined':
+                case 'host_ready':
+                    if (isHost) {
+                        document.getElementById('hostInfo').textContent = 'Viewer found! Establishing connection...';
+                        document.getElementById('hostInfo').classList.remove('connecting');
+                        // Host creates offer
+                        await createOffer();
+                    }
+                    break;
+
+                case 'client_registered':
+                    console.log('[+] Registered as client');
+                    updateStatus('clientStatus', 'success', 'Connected to session!', true);
+                    break;
+
+                case 'offer':
+                    console.log('[+] Received offer');
+                    await handleOffer(msg.sdp);
+                    break;
+
+                case 'answer':
+                    console.log('[+] Received answer');
+                    await handleAnswer(msg.sdp);
+                    break;
+
+                case 'ice_candidate':
+                    if (msg.candidate) {
+                        try {
+                            await peerConnection.addIceCandidate(msg.candidate);
+                        } catch (e) {
+                            console.error('[!] ICE error:', e);
+                        }
+                    }
+                    break;
+
+                case 'peer_disconnected':
+                    alert('Remote peer disconnected');
+                    location.reload();
+                    break;
+
+                case 'error':
+                    alert('Error: ' + msg.message);
+                    break;
+            }
+        }
+
+        // Create peer connection
+        function createPeerConnection() {
+            peerConnection = new RTCPeerConnection({ iceServers: ICE_SERVERS });
+
+            peerConnection.onicecandidate = (event) => {
+                if (event.candidate) {
+                    sendMessage({
+                        type: 'ice_candidate',
+                        candidate: event.candidate.toJSON()
+                    });
+                }
+            };
+
+            peerConnection.ontrack = (event) => {
+                console.log('[+] Remote track received');
+                const [stream] = event.streams;
+                document.getElementById('remoteScreen').srcObject = stream;
+                document.getElementById('remoteScreen').style.display = 'block';
+                startTime = Date.now();
+            };
+
+            peerConnection.onconnectionstatechange = () => {
+                console.log('[PC] State:', peerConnection.connectionState);
+                if (peerConnection.connectionState === 'connected') {
+                    onConnected();
+                } else if (['disconnected', 'failed', 'closed'].includes(peerConnection.connectionState)) {
+                    onDisconnected();
+                }
+            };
+
+            // Host creates data channel for input events
+            if (isHost) {
+                dataChannel = peerConnection.createDataChannel('input');
+                setupDataChannel(dataChannel);
+            } else {
+                peerConnection.ondatachannel = (event) => {
+                    dataChannel = event.channel;
+                    setupDataChannel(dataChannel);
+                };
+            }
+
+            return peerConnection;
+        }
+
+        // Setup data channel
+        function setupDataChannel(channel) {
+            channel.onopen = () => console.log('[DC] Open');
+            channel.onclose = () => console.log('[DC] Closed');
+            channel.onmessage = (event) => handleInputEvent(event.data);
+        }
+
+        // Create offer (host side)
+        async function createOffer() {
+            createPeerConnection();
+
+            const offer = await peerConnection.createOffer();
+            await peerConnection.setLocalDescription(offer);
+
+            sendMessage({
+                type: 'offer',
+                sdp: peerConnection.localDescription.sdp
+            });
+        }
+
+        // Handle offer (client side)
+        async function handleOffer(sdp) {
+            createPeerConnection();
+
+            await peerConnection.setRemoteDescription(
+                new RTCSessionDescription({ type: 'offer', sdp })
+            );
+
+            const answer = await peerConnection.createAnswer();
+            await peerConnection.setLocalDescription(answer);
+
+            sendMessage({
+                type: 'answer',
+                sdp: peerConnection.localDescription.sdp
+            });
+        }
+
+        // Handle answer (host side)
+        async function handleAnswer(sdp) {
+            await peerConnection.setRemoteDescription(
+                new RTCSessionDescription({ type: 'answer', sdp })
+            );
+        }
+
+        // Send message via WebSocket
+        function sendMessage(msg) {
+            if (ws && ws.readyState === WebSocket.OPEN) {
+                ws.send(JSON.stringify(msg));
+            }
+        }
+
+        // Create session (host)
+        async function createSession() {
+            try {
+                sessionCode = 'host:' + Math.random().toString(36).substring(2, 10);
+                isHost = true;
+
+                await connectWebSocket();
+
+                document.getElementById('hostCode').textContent = 'GENERATING...';
+                document.getElementById('hostCodeDisplay').style.display = 'block';
+                updateStatus('hostStatus', 'info', 'Creating session...', true);
+
+                // Generate session code via REST (or use WebSocket)
+                const response = await fetch(`http://${SIGNALING_SERVER.replace('ws://','')}/create-session`);
+                if (response.ok) {
+                    const data = await response.json();
+                    sessionCode = 'host:' + data.code;
+                    document.getElementById('hostCode').textContent = data.code;
+                }
+
+            } catch (error) {
+                updateStatus('hostStatus', 'error', 'Failed to create session: ' + error.message, true);
+            }
+        }
+
+        // Join session (client)
+        async function joinSession() {
+            const code = document.getElementById('sessionCodeInput').value;
+            if (!code || code.length < 9) {
+                updateStatus('clientStatus', 'error', 'Please enter a valid session code', true);
+                return;
+            }
+
+            try {
+                sessionCode = 'client:' + code.replace('-', '');
+                isHost = false;
+
+                await connectWebSocket();
+                updateStatus('clientStatus', 'info', 'Connecting to host...', true);
+
+                // Wait for host to send offer
+            } catch (error) {
+                updateStatus('clientStatus', 'error', 'Failed to connect: ' + error.message, true);
+            }
+        }
+
+        // Update status display
+        function updateStatus(elementId, type, message, show = true) {
+            const el = document.getElementById(elementId);
+            el.className = 'status ' + type;
+            el.textContent = message;
+            el.style.display = show ? 'block' : 'none';
+        }
+
+        // On connected
+        function onConnected() {
+            if (isHost) {
+                document.getElementById('hostSetup').style.display = 'none';
+                document.getElementById('hostConnected').classList.add('active');
+                document.getElementById('connectionStats').textContent = 'Connection established!';
+            } else {
+                document.getElementById('clientSetup').style.display = 'none';
+                document.getElementById('clientConnected').classList.add('active');
+                updateLatency();
+            }
+        }
+
+        // On disconnected
+        function onDisconnected() {
+            alert('Connection lost');
+            location.reload();
+        }
+
+        // Update latency display
+        function updateLatency() {
+            if (startTime) {
+                const latency = Date.now() - startTime;
+                document.getElementById('latencyDisplay').textContent = `Latency: ${latency}ms`;
+            }
+            setTimeout(updateLatency, 1000);
+        }
+
+        // Disconnect host
+        function disconnectHost() {
+            sendMessage({ type: 'close_session' });
+            cleanup();
+            location.reload();
+        }
+
+        // Disconnect client
+        function disconnectClient() {
+            sendMessage({ type: 'close_session' });
+            cleanup();
+            location.reload();
+        }
+
+        // Cleanup
+        function cleanup() {
+            if (peerConnection) {
+                peerConnection.close();
+                peerConnection = null;
+            }
+            if (ws) {
+                ws.close();
+                ws = null;
+            }
+        }
+
+        // Handle input events
+        function handleInputEvent(data) {
+            console.log('Input event received:', data);
+            // This would send input events to control the host
+            // For web client, we need to capture local input and send to data channel
+        }
+
+        // Capture and send local input events (client side)
+        document.addEventListener('mousemove', (e) => {
+            if (dataChannel && dataChannel.readyState === 'open') {
+                dataChannel.send(JSON.stringify({
+                    type: 'mouse_move',
+                    x: e.screenX,
+                    y: e.screenY
+                }));
+            }
+        });
+
+        document.addEventListener('click', (e) => {
+            if (dataChannel && dataChannel.readyState === 'open') {
+                dataChannel.send(JSON.stringify({
+                    type: 'mouse_click',
+                    button: e.button === 0 ? 'left' : e.button === 2 ? 'right' : 'middle',
+                    x: e.screenX,
+                    y: e.screenY
+                }));
+            }
+        });
+
+        document.addEventListener('keydown', (e) => {
+            if (dataChannel && dataChannel.readyState === 'open') {
+                dataChannel.send(JSON.stringify({
+                    type: 'keyboard',
+                    key: e.key,
+                    code: e.code
+                }));
+            }
+        });
+
+        // Prevent context menu on right click
+        document.addEventListener('contextmenu', (e) => e.preventDefault());
+    </script>
+</body>
+</html>

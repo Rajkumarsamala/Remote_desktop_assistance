@@ -1,0 +1,12 @@
+2026-03-04 09:55:25,051 [ERROR] Client error: [WinError 10054] An existing connection was forcibly closed by the remote host
+Traceback (most recent call last):
+  File "C:\Users\samal\OneDrive\Desktop\Remote desktop Assistance\client.py", line 245, in main
+    if not client.connect():
+           ^^^^^^^^^^^^^^^^
+  File "C:\Users\samal\OneDrive\Desktop\Remote desktop Assistance\client.py", line 164, in connect
+    handshake = recv_plain_handshake(self.sock)
+                ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\samal\OneDrive\Desktop\Remote desktop Assistance\client.py", line 67, in recv_plain_handshake
+    data = sock.recv(64)
+           ^^^^^^^^^^^^^
+ConnectionResetError: [WinError 10054] An existing connection was forcibly closed by the remote host

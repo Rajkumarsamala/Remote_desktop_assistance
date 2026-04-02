@@ -1,0 +1,637 @@
+"""
+Host Application for Remote Desktop
+Captures screen and streams to connected client via WebRTC
+
+Usage:
+    python host.py
+
+The host will:
+1. Connect to signaling server
+2. Wait for client connection
+3. Capture screen frames
+4. Stream via WebRTC when connected
+5. Receive and execute input events
+"""
+import asyncio
+import json
+import sys
+import os
+import time
+import queue
+import threading
+from typing import Optional, Dict, Any
+from fractions import Fraction
+import argparse
+from aiortc import RTCPeerConnection, RTCSessionDescription, RTCIceCandidate, RTCConfiguration, RTCIceServer
+
+# Add parent directory to path
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
+# Import signaling server components
+sys.path.insert(0, os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), 'signaling_server'))
+
+from shared.constants import (
+    SIGNALING_HOST, SIGNALING_PORT, SIGNALING_WS_URL,
+    SCREEN_QUALITY, SCREEN_FPS, SCREEN_CHUNK_SIZE,
+    MSG_TYPE_OFFER, MSG_TYPE_ANSWER, MSG_TYPE_ICE_CANDIDATE,
+    MSG_TYPE_CREATE_SESSION, MSG_TYPE_SESSION_CREATED,
+    MSG_TYPE_SESSION_NOT_FOUND, MSG_TYPE_SESSION_FULL,
+    MSG_TYPE_PEER_DISCONNECTED, MSG_TYPE_HOST_REGISTERED,
+    MSG_TYPE_CLIENT_REGISTERED, MSG_TYPE_PING, MSG_TYPE_PONG,
+    MSG_TYPE_INPUT_EVENT,
+)
+from shared.models import InputEvent, SessionState
+
+
+# WebRTC imports - use aiortc for Python
+try:
+    from aiortc import RTCPeerConnection, RTCSessionDescription, VideoStreamTrack
+    from aiortc.contrib.media import MediaPlayer, MediaRecorder, MediaBlackhole
+    import av
+    AIORTC_AVAILABLE = True
+except ImportError:
+    AIORTC_AVAILABLE = False
+    print("[!] aiortc not installed. Installing...")
+    os.system("pip install aiortc av")
+
+# Screen capture imports
+try:
+    import mss
+    import pyautogui
+    pyautogui.FAILSAFE = True  # Move mouse to corner to abort
+    pyautogui.PAUSE = 0  # No pause between actions
+except ImportError:
+    print("[!] mss or pyautogui not installed")
+    sys.exit(1)
+
+# Image processing
+import numpy as np
+from PIL import Image
+import io
+
+
+class ScreenCapture:
+    """
+    Captures screen frames using mss library.
+    Provides frames in a format suitable for WebRTC streaming.
+    """
+
+    def __init__(self, quality: int = 75, fps: int = 20):
+        """
+        Initialize screen capture.
+
+        Args:
+            quality: JPEG compression quality (0-100)
+            fps: Target frames per second
+        """
+        self.quality = quality
+        self.fps = fps
+        self.frame_interval = 1.0 / fps
+        self.sct = mss.mss()
+        self.monitor = self.sct.monitors[1]  # Primary monitor
+        self.running = False
+        self.frame_count = 0
+
+    def get_frame(self) -> bytes:
+        """
+        Capture a single frame from the screen.
+
+        Returns:
+            JPEG compressed frame data
+        """
+        # Capture screen
+        screenshot = self.sct.grab(self.monitor)
+
+        # Convert to PIL Image
+        img = Image.frombytes("RGB", screenshot.size, screenshot.bgra, "raw", "BGRX")
+
+        # Compress to JPEG
+        buffer = io.BytesIO()
+        img.save(buffer, format="JPEG", quality=self.quality)
+        return buffer.getvalue()
+
+    def get_frame_ndarray(self) -> np.ndarray:
+        """
+        Capture a single frame and return as numpy array.
+        Used for WebRTC streaming.
+
+        Returns:
+            RGB numpy array (height, width, 3)
+        """
+        # Capture screen
+        screenshot = self.sct.grab(self.monitor)
+
+        # Convert to numpy array (BGRA -> RGB)
+        img = Image.frombytes("RGB", screenshot.size, screenshot.bgra, "raw", "BGRX")
+        return np.array(img)
+
+    def get_frame_with_cursor(self) -> bytes:
+        """
+        Capture frame and embed cursor position.
+        Returns JPEG compressed frame data.
+        """
+        # Get cursor position
+        try:
+            cursor_x, cursor_y = pyautogui.position()
+        except:
+            cursor_x, cursor_y = 0, 0
+
+        # Capture screen
+        screenshot = self.sct.grab(self.monitor)
+
+        # Convert to PIL Image
+        img = Image.frombytes("RGB", screenshot.size, screenshot.bgra, "raw", "BGRX")
+
+        # Draw cursor position (optional - can be disabled for performance)
+        # draw = ImageDraw.Draw(img)
+        # draw.ellipse([(cursor_x-5, cursor_y-5), (cursor_x+5, cursor_y+5)], fill='red')
+
+        # Compress to JPEG
+        buffer = io.BytesIO()
+        img.save(buffer, format="JPEG", quality=self.quality)
+        return buffer.getvalue()
+
+    def get_screen_size(self) -> tuple:
+        """Get screen dimensions."""
+        return self.monitor["width"], self.monitor["height"]
+
+    def start(self):
+        """Start capture."""
+        self.running = True
+
+    def stop(self):
+        """Stop capture."""
+        self.running = False
+        self.sct.close()
+
+
+class InputHandler:
+    """
+    Handles input events received from client.
+    Executes mouse and keyboard events on the host machine.
+    """
+
+    def __init__(self):
+        self.last_x = 0
+        self.last_y = 0
+
+    def execute_event(self, event: InputEvent):
+        """
+        Execute an input event.
+
+        Args:
+            event: InputEvent object containing event details
+        """
+        try:
+            if event.event_type == 'mouse_move':
+                # Move mouse to absolute position
+                pyautogui.moveTo(event.x, event.y, duration=0)
+                self.last_x, self.last_y = event.x, event.y
+
+            elif event.event_type == 'mouse_click':
+                # Handle mouse click at position
+                if event.button == 'left':
+                    pyautogui.click(event.x, event.y, button='left')
+                elif event.button == 'right':
+                    pyautogui.click(event.x, event.y, button='right')
+                elif event.button == 'middle':
+                    pyautogui.click(event.x, event.y, button='middle')
+
+            elif event.event_type == 'mouse_release':
+                if event.button == 'left':
+                    pyautogui.mouseUp(button='left')
+                elif event.button == 'right':
+                    pyautogui.mouseUp(button='right')
+
+            elif event.event_type == 'keyboard':
+                # Handle keyboard input
+                if event.key:
+                    pyautogui.press(event.key)
+
+            elif event.event_type == 'scroll':
+                # Handle scroll
+                delta = event.delta_y if event.delta_y else 0
+                pyautogui.scroll(int(delta / 120))  # Scroll clicks
+
+        except Exception as e:
+            print(f"[!] Input error: {e}")
+
+
+class VideoFrameTrack(VideoStreamTrack):
+    """
+    Custom VideoStreamTrack that continuously sends screen frames.
+    Used for WebRTC video streaming.
+    """
+
+    def __init__(self, screen_capture: ScreenCapture):
+        """
+        Initialize video track.
+
+        Args:
+            screen_capture: ScreenCapture instance
+        """
+        super().__init__()
+        self.screen_capture = screen_capture
+        self.frame_interval = 1.0 / screen_capture.fps
+        self._start_time = None
+        self._frame_count = 0
+
+    async def recv(self):
+        """
+        Receive next video frame.
+        Called by aiortc when frame is needed.
+
+        Returns:
+            VideoFrame: The next screen frame
+        """
+        if self._start_time is None:
+            self._start_time = time.time()
+
+        # Wait for frame interval
+        await asyncio.sleep(self.frame_interval)
+
+        # Capture frame as numpy array
+        frame_array = self.screen_capture.get_frame_ndarray()
+
+        # Create VideoFrame from numpy array
+        video_frame = av.VideoFrame.from_ndarray(frame_array, format="rgb24")
+        video_frame.pts = int(time.time() * 1000000)  # Microseconds
+        video_frame.time_base = Fraction(1, 1000000)
+
+        self._frame_count += 1
+        return video_frame
+
+
+def ice_candidate_to_json(candidate) -> dict:
+    """Serialize RTCIceCandidate to JSON-compatible dict."""
+    return {
+        'component': candidate.component,
+        'foundation': candidate.foundation,
+        'ip': candidate.ip,
+        'port': candidate.port,
+        'priority': candidate.priority,
+        'protocol': candidate.protocol,
+        'type': candidate.type,
+        'sdpMid': candidate.sdpMid,
+        'sdpMLineIndex': candidate.sdpMLineIndex,
+        'relatedAddress': candidate.relatedAddress,
+        'relatedPort': candidate.relatedPort,
+    }
+
+
+def ice_candidate_from_json(data: dict) -> RTCIceCandidate:
+    """Create RTCIceCandidate from JSON dict."""
+    return RTCIceCandidate(
+        component=data['component'],
+        foundation=data['foundation'],
+        ip=data['ip'],
+        port=data['port'],
+        priority=data['priority'],
+        protocol=data['protocol'],
+        type=data['type'],
+        sdpMid=data.get('sdpMid'),
+        sdpMLineIndex=data.get('sdpMLineIndex'),
+        relatedAddress=data.get('relatedAddress'),
+        relatedPort=data.get('relatedPort'),
+    )
+
+
+class HostApplication:
+    """
+    Main host application class.
+    Manages WebRTC connection and coordinates screen capture + input handling.
+    """
+
+    def __init__(
+        self,
+        signaling_host: str = SIGNALING_HOST,
+        signaling_port: int = SIGNALING_PORT,
+        quality: int = SCREEN_QUALITY,
+        fps: int = SCREEN_FPS,
+    ):
+        """
+        Initialize host application.
+
+        Args:
+            signaling_host: Signaling server host
+            signaling_port: Signaling server port
+            quality: Screen capture JPEG quality
+            fps: Target frames per second
+        """
+        self.signaling_host = signaling_host
+        self.signaling_port = signaling_port
+        self.signaling_url = f"ws://{signaling_host}:{signaling_port}"
+
+        # Components
+        self.screen_capture = ScreenCapture(quality=quality, fps=fps)
+        self.input_handler = InputHandler()
+
+        # WebRTC
+        self.peer_connection: Optional[RTCPeerConnection] = None
+        self.data_channel = None
+        self.video_track = None
+
+        # State
+        self.session_code: Optional[str] = None
+        self.websocket = None
+        self.running = False
+        self.client_connected = False
+
+        # Stats
+        self.bytes_sent = 0
+        self.frames_sent = 0
+        self.start_time = None
+
+    async def create_session(self) -> Optional[str]:
+        """
+        Create a new session via HTTP request to signaling server.
+
+        Returns:
+            Session code if successful, None otherwise
+        """
+        try:
+            import aiohttp
+            async with aiohttp.ClientSession() as session:
+                async with session.post(
+                    f"http://{self.signaling_host}:{self.signaling_port}/create-session"
+                ) as response:
+                    if response.status == 200:
+                        data = await response.json()
+                        return data.get("code")
+                    else:
+                        print(f"[!] Failed to create session: {response.status}")
+                        return None
+        except Exception as e:
+            print(f"[!] Error creating session: {e}")
+            return None
+
+    async def connect_signaling(self, session_code: str) -> bool:
+        """
+        Connect to signaling server WebSocket.
+
+        Args:
+            session_code: Session code for this host
+
+        Returns:
+            True if connected successfully
+        """
+        import aiohttp
+        import websockets
+
+        try:
+            ws_url = f"ws://{self.signaling_host}:{self.signaling_port}/ws/host:{session_code}"
+            print(f"[*] Connecting to signaling server: {ws_url}")
+
+            self.websocket = await websockets.connect(ws_url)
+
+            # Wait for registration confirmation
+            msg = await self.websocket.recv()
+            data = json.loads(msg)
+
+            if data.get("type") == MSG_TYPE_HOST_REGISTERED:
+                print(f"[+] Registered as host for session {session_code}")
+                return True
+            else:
+                print(f"[!] Unexpected message: {data}")
+                return False
+
+        except Exception as e:
+            print(f"[!] Signaling connection error: {e}")
+            return False
+
+    async def setup_webrtc(self):
+        """
+        Set up WebRTC peer connection for screen streaming.
+        """
+        # Create peer connection
+        config = RTCConfiguration(iceServers=[
+            RTCIceServer(urls=["stun:stun.l.google.com:19302"])
+        ])
+        self.peer_connection = RTCPeerConnection(configuration=config)
+
+        # Create data channel for input events
+        self.data_channel = self.peer_connection.createDataChannel("input")
+        self.data_channel.on("message", self._handle_input_message)
+        self.data_channel.on("open", lambda: print("[+] Data channel opened"))
+
+        # Create video track
+        self.video_track = VideoFrameTrack(self.screen_capture)
+        self.peer_connection.addTrack(self.video_track)
+
+        # Set up ICE candidates handler
+        @self.peer_connection.on("icecandidate")
+        async def on_ice_candidate(candidate):
+            if candidate and self.websocket:
+                await self.websocket.send(json.dumps({
+                    "type": MSG_TYPE_ICE_CANDIDATE,
+                    "candidate": ice_candidate_to_json(candidate)
+                }))
+
+        # Set up connection state handler
+        @self.peer_connection.on("connectionstatechange")
+        def on_connection_state_change():
+            state = self.peer_connection.connection_state
+            print(f"[*] Connection state: {state}")
+
+            if state == "connected":
+                self.client_connected = True
+                self.start_time = time.time()
+                print("[+] Client connected!")
+            elif state in ["disconnected", "failed", "closed"]:
+                self.client_connected = False
+                print("[-] Client disconnected")
+
+    async def _handle_input_message(self, data):
+        """
+        Handle input event received from client via data channel.
+
+        Args:
+            data: JSON string with input event details
+        """
+        try:
+            event = InputEvent.from_json(data)
+            self.input_handler.execute_event(event)
+        except Exception as e:
+            print(f"[!] Input error: {e}")
+
+    async def handle_signaling_message(self, msg: Dict[str, Any]):
+        """
+        Handle signaling message from server.
+
+        Args:
+            msg: Parsed message dictionary
+        """
+        msg_type = msg.get("type")
+
+        if msg_type == "client_joined":
+            print("[*] Client connected, creating offer...")
+            offer = await self.peer_connection.createOffer()
+            await self.peer_connection.setLocalDescription(offer)
+            await self.websocket.send(json.dumps({
+                "type": MSG_TYPE_OFFER,
+                "sdp": self.peer_connection.localDescription.sdp
+            }))
+            print("[*] Offer sent")
+
+        elif msg_type == MSG_TYPE_ANSWER:
+            sdp = msg.get("sdp")
+            print("[*] Received answer")
+            await self.peer_connection.setRemoteDescription(
+                RTCSessionDescription(sdp=sdp, type="answer")
+            )
+
+        elif msg_type == MSG_TYPE_ICE_CANDIDATE:
+            # Add ICE candidate
+            candidate_data = msg.get("candidate")
+            if candidate_data:
+                candidate = ice_candidate_from_json(candidate_data)
+                await self.peer_connection.addIceCandidate(candidate)
+
+        elif msg_type == MSG_TYPE_PEER_DISCONNECTED:
+            print("[*] Client disconnected")
+            self.client_connected = False
+
+    async def signaling_loop(self):
+        """
+        Main signaling loop - handles messages from signaling server.
+        """
+        try:
+            while self.running and self.websocket:
+                msg = await self.websocket.recv()
+                data = json.loads(msg)
+                await self.handle_signaling_message(data)
+        except websockets.exceptions.ConnectionClosed:
+            print("[*] Signaling connection closed")
+        except Exception as e:
+            print(f"[!] Signaling error: {e}")
+
+    async def run(self):
+        """
+        Main run loop for the host application.
+        """
+        print("=" * 60)
+        print("  RemoteView Host - Screen Sharing")
+        print("=" * 60)
+
+        # Step 1: Create session
+        print("[*] Creating session...")
+        self.session_code = await self.create_session()
+
+        if not self.session_code:
+            print("[!] Failed to create session")
+            return
+
+        print(f"[+] Session created: {self.session_code}")
+        print(f"[*] Share this code with the viewer")
+
+        # Step 2: Connect to signaling
+        print("[*] Connecting to signaling server...")
+        if not await self.connect_signaling(self.session_code):
+            print("[!] Failed to connect to signaling server")
+            return
+
+        # Step 3: Set up WebRTC
+        print("[*] Setting up WebRTC connection...")
+        await self.setup_webrtc()
+
+        # Step 4: Start screen capture
+        self.screen_capture.start()
+        print(f"[*] Screen capture started ({self.screen_capture.fps} FPS)")
+
+        # Step 5: Run main loop
+        self.running = True
+        print("[*] Host is running. Press Ctrl+C to stop.")
+        print("=" * 60)
+
+        try:
+            # Run signaling and stats in parallel
+            stats_task = asyncio.create_task(self.stats_loop())
+            signaling_task = asyncio.create_task(self.signaling_loop())
+
+            await asyncio.gather(signaling_task, stats_task)
+
+        except KeyboardInterrupt:
+            print("\n[*] Shutting down...")
+        finally:
+            await self.shutdown()
+
+    async def stats_loop(self):
+        """Print periodic connection stats."""
+        while self.running:
+            await asyncio.sleep(5)
+            if self.client_connected and self.start_time:
+                elapsed = time.time() - self.start_time
+                print(f"[*] Stats: {self.frames_sent} frames, "
+                      f"{self.bytes_sent / 1024 / 1024:.1f} MB sent, "
+                      f"{self.frames_sent / elapsed:.1f} FPS")
+
+    async def shutdown(self):
+        """Clean shutdown."""
+        print("[*] Closing connections...")
+        self.running = False
+
+        if self.peer_connection:
+            await self.peer_connection.close()
+
+        if self.websocket:
+            await self.websocket.close()
+
+        self.screen_capture.stop()
+        print("[*] Host stopped")
+
+
+async def main():
+    """Main entry point."""
+    parser = argparse.ArgumentParser(description="RemoteView Host - Screen Sharing")
+    parser.add_argument("--host", default=SIGNALING_HOST, help="Signaling server host")
+    parser.add_argument("--port", type=int, default=SIGNALING_PORT, help="Signaling server port")
+    parser.add_argument("--quality", type=int, default=SCREEN_QUALITY, help="JPEG quality (0-100)")
+    parser.add_argument("--fps", type=int, default=SCREEN_FPS, help="Frames per second")
+
+    args = parser.parse_args()
+
+    host_app = HostApplication(
+        signaling_host=args.host,
+        signaling_port=args.port,
+        quality=args.quality,
+        fps=args.fps,
+    )
+
+    await host_app.run()
+
+
+if __name__ == "__main__":
+    # Check dependencies
+    if not AIORTC_AVAILABLE:
+        print("[!] Please install aiortc: pip install aiortc av")
+        sys.exit(1)
+
+    try:
+        import websockets
+    except ImportError:
+        print("[!] Installing websockets...")
+        os.system("pip install websockets")
+        import websockets
+
+    try:
+        import aiohttp
+    except ImportError:
+        print("[!] Installing aiohttp...")
+        os.system("pip install aiohttp")
+        import aiohttp
+
+    try:
+        import mss
+    except ImportError:
+        print("[!] Installing mss...")
+        os.system("pip install mss")
+        import mss
+
+    try:
+        import pyautogui
+    except ImportError:
+        print("[!] Installing pyautogui...")
+        os.system("pip install pyautogui")
+        import pyautogui
+
+    asyncio.run(main())

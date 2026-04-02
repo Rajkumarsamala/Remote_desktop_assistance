@@ -1,0 +1,12 @@
+2026-03-04 08:28:50,116 [INFO] Server started on 0.0.0.0:5000
+2026-03-04 08:35:02,890 [INFO] Server started on 0.0.0.0:5000
+2026-03-04 08:35:13,693 [INFO] Incoming connection from 10.231.44.145:53763
+2026-03-04 08:35:13,747 [INFO] Authenticated client: 10.231.44.145:53763
+2026-03-04 08:36:26,324 [INFO] Command MOVE from 10.231.44.145:53763 -> Mouse moved.
+2026-03-04 08:36:30,986 [INFO] Command MOVE from 10.231.44.145:53763 -> Mouse moved.
+2026-03-04 08:36:34,158 [INFO] Command MOVE from 10.231.44.145:53763 -> Mouse moved.
+2026-03-04 08:37:22,993 [INFO] Command MOVE from 10.231.44.145:53763 -> Mouse moved.
+2026-03-04 08:37:23,017 [INFO] Command CLICK from 10.231.44.145:53763 -> Left click performed.
+2026-03-04 08:37:29,246 [INFO] Command TYPE from 10.231.44.145:53763 -> Text typed.
+2026-03-04 09:30:08,759 [INFO] Incoming connection from 10.231.44.145:61580
+2026-03-04 09:30:08,761 [WARNING] Rejected 10.231.44.145:61580 (another client active)
