@@ -1,0 +1,10 @@
+services:
+  - type: web
+    name: remote-view-signaling
+    env: python
+    region: oregon
+    buildCommand: "pip install fastapi uvicorn websockets python-multipart"
+    startCommand: "uvicorn signaling_server.server:app --host 0.0.0.0 --port $PORT"
+    envVars:
+      - key: PYTHON_VERSION
+        value: 3.10.13
