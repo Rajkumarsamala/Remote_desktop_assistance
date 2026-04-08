@@ -4,9 +4,10 @@ Shared constants for Remote Desktop Application
 import os
 
 # Server configuration
-SIGNALING_HOST = os.getenv("SIGNALING_HOST", "localhost")
-SIGNALING_PORT = int(os.getenv("SIGNALING_PORT", "8765"))
-SIGNALING_WS_URL = f"ws://{SIGNALING_HOST}:{SIGNALING_PORT}"
+SIGNALING_HOST = os.getenv("SIGNALING_HOST", "remote-view-signaling.onrender.com")
+SIGNALING_PORT = int(os.getenv("SIGNALING_PORT", "443"))
+# Use wss:// for production (HTTPS), ws:// for localhost
+SIGNALING_WS_URL = f"wss://{SIGNALING_HOST}" if SIGNALING_PORT == 443 else f"ws://{SIGNALING_HOST}:{SIGNALING_PORT}"
 
 # STUN/TURN servers for NAT traversal
 STUN_SERVERS = [

@@ -58,7 +58,7 @@ except ImportError:
 try:
     import mss
     import pyautogui
-    pyautogui.FAILSAFE = True  # Move mouse to corner to abort
+    pyautogui.FAILSAFE = False  # Disable failsafe to allow corner access during remote control
     pyautogui.PAUSE = 0  # No pause between actions
 except ImportError:
     print("[!] mss or pyautogui not installed")
@@ -264,36 +264,77 @@ class VideoFrameTrack(VideoStreamTrack):
 
 def ice_candidate_to_json(candidate) -> dict:
     """Serialize RTCIceCandidate to JSON-compatible dict."""
+    from aiortc.sdp import candidate_to_sdp
     return {
-        'component': candidate.component,
-        'foundation': candidate.foundation,
-        'ip': candidate.ip,
-        'port': candidate.port,
-        'priority': candidate.priority,
-        'protocol': candidate.protocol,
-        'type': candidate.type,
+        'candidate': f"candidate:{candidate_to_sdp(candidate)}",
         'sdpMid': candidate.sdpMid,
         'sdpMLineIndex': candidate.sdpMLineIndex,
-        'relatedAddress': candidate.relatedAddress,
-        'relatedPort': candidate.relatedPort,
     }
 
 
 def ice_candidate_from_json(data: dict) -> RTCIceCandidate:
-    """Create RTCIceCandidate from JSON dict."""
-    return RTCIceCandidate(
-        component=data['component'],
-        foundation=data['foundation'],
-        ip=data['ip'],
-        port=data['port'],
-        priority=data['priority'],
-        protocol=data['protocol'],
-        type=data['type'],
-        sdpMid=data.get('sdpMid'),
-        sdpMLineIndex=data.get('sdpMLineIndex'),
-        relatedAddress=data.get('relatedAddress'),
-        relatedPort=data.get('relatedPort'),
-    )
+    """Create RTCIceCandidate from JSON dict.
+
+    Handles two formats:
+    1. Browser format: {'candidate': 'candidate:1 1 UDP ...', 'sdpMid': '0', 'sdpMLineIndex': 0}
+    2. Structured format: {'component': 1, 'foundation': '...', 'ip': '...', etc.}
+    """
+    # Check if this is a browser-format candidate (string in 'candidate' field)
+    if 'candidate' in data and isinstance(data['candidate'], str):
+        # Parse browser candidate string: "candidate:1 1 UDP 2128615934 192.168.1.100 56521 typ host"
+        candidate_str = data['candidate']
+        if candidate_str.startswith('candidate:'):
+            candidate_str = candidate_str[10:]  # Remove 'candidate:' prefix
+
+        parts = candidate_str.split()
+        # Format: <foundation> <component> <protocol> <priority> <ip> <port> typ <type> [raddr <raddr> rport <rport>]
+        foundation = parts[0]
+        component = int(parts[1])
+        protocol = parts[2].lower()
+        priority = int(parts[3])
+        ip = parts[4]
+        port = int(parts[5])
+
+        # Find 'typ' and get the type
+        typ_idx = parts.index('typ')
+        cand_type = parts[typ_idx + 1]
+
+        # Parse optional related address/port
+        relatedAddress = None
+        relatedPort = None
+        if 'raddr' in parts:
+            raddr_idx = parts.index('raddr')
+            relatedAddress = parts[raddr_idx + 1]
+            relatedPort = int(parts[raddr_idx + 3])  # Skip 'rport'
+
+        return RTCIceCandidate(
+            component=component,
+            foundation=foundation,
+            ip=ip,
+            port=port,
+            priority=priority,
+            protocol=protocol,
+            type=cand_type,
+            sdpMid=data.get('sdpMid'),
+            sdpMLineIndex=data.get('sdpMLineIndex'),
+            relatedAddress=relatedAddress,
+            relatedPort=relatedPort,
+        )
+    else:
+        # Structured format (already parsed)
+        return RTCIceCandidate(
+            component=data['component'],
+            foundation=data['foundation'],
+            ip=data['ip'],
+            port=data['port'],
+            priority=data['priority'],
+            protocol=data['protocol'],
+            type=data['type'],
+            sdpMid=data.get('sdpMid'),
+            sdpMLineIndex=data.get('sdpMLineIndex'),
+            relatedAddress=data.get('relatedAddress'),
+            relatedPort=data.get('relatedPort'),
+        )
 
 
 class HostApplication:
@@ -337,6 +378,10 @@ class HostApplication:
         self.running = False
         self.client_connected = False
 
+        # ICE candidate queue (for race condition when candidates arrive before remoteDescription)
+        self.ice_candidate_queue = []
+        self._remote_description_set = False
+
         # Stats
         self.bytes_sent = 0
         self.frames_sent = 0
@@ -352,8 +397,10 @@ class HostApplication:
         try:
             import aiohttp
             async with aiohttp.ClientSession() as session:
+                protocol = "https" if self.signaling_port == 443 else "http"
+                port_str = "" if self.signaling_port in [80, 443] else f":{self.signaling_port}"
                 async with session.post(
-                    f"http://{self.signaling_host}:{self.signaling_port}/create-session"
+                    f"{protocol}://{self.signaling_host}{port_str}/create-session"
                 ) as response:
                     if response.status == 200:
                         data = await response.json()
@@ -379,11 +426,13 @@ class HostApplication:
         import websockets
 
         try:
+            # Use wss:// for port 443 (production), ws:// for others
             protocol = "wss" if self.signaling_port == 443 else "ws"
-            ws_url = f"{protocol}://{self.signaling_host}:{self.signaling_port}/ws/host:{session_code}"
+            port_str = "" if self.signaling_port in [80, 443] else f":{self.signaling_port}"
+            ws_url = f"{protocol}://{self.signaling_host}{port_str}/ws/host:{session_code}"
             print(f"[*] Connecting to signaling server: {ws_url}")
 
-            self.websocket = await websockets.connect(ws_url)
+            self.websocket = await websockets.connect(ws_url, ping_interval=30, ping_timeout=10)
 
             # Wait for registration confirmation
             msg = await self.websocket.recv()
@@ -404,15 +453,23 @@ class HostApplication:
         """
         Set up WebRTC peer connection for screen streaming.
         """
-        # Create peer connection
+        # Reset ICE queue and remote description state
+        self.ice_candidate_queue = []
+        self._remote_description_set = False
+
+        # Create peer connection with STUN + TURN servers
         config = RTCConfiguration(iceServers=[
-            RTCIceServer(urls=["stun:stun.l.google.com:19302"])
+            RTCIceServer(urls="stun:stun.l.google.com:19302"),
+            RTCIceServer(urls="stun:stun1.l.google.com:19302"),
+            RTCIceServer(urls="stun:stun2.l.google.com:19302"),
+            # Free TURN relay for symmetric NATs
+            RTCIceServer(urls="turn:openrelay.projectenica.org:443", username="openrelay", credential="openrelay"),
         ])
         self.peer_connection = RTCPeerConnection(configuration=config)
 
         # Create data channel for input events
         self.data_channel = self.peer_connection.createDataChannel("input")
-        self.data_channel.on("message", self._handle_input_message)
+        self.data_channel.on("message", lambda data: asyncio.create_task(self._handle_input_message(data)))
         self.data_channel.on("open", lambda: print("[+] Data channel opened"))
 
         # Create video track
@@ -427,6 +484,11 @@ class HostApplication:
                     "type": MSG_TYPE_ICE_CANDIDATE,
                     "candidate": ice_candidate_to_json(candidate)
                 }))
+
+        # Set up ICE connection state to detect when remote description is set
+        @self.peer_connection.on("iceconnectionstatechange")
+        def on_ice_connection_state_change():
+            print(f"[*] ICE connection state: {self.peer_connection.iceConnectionState}")
 
         # Set up connection state handler
         @self.peer_connection.on("connectionstatechange")
@@ -450,10 +512,22 @@ class HostApplication:
             data: JSON string with input event details
         """
         try:
+            print(f"[DC] Received input event: {data}")
             event = InputEvent.from_json(data)
             self.input_handler.execute_event(event)
         except Exception as e:
             print(f"[!] Input error: {e}")
+
+    async def _flush_ice_candidates(self):
+        """Apply queued ICE candidates after remoteDescription is set."""
+        while self.ice_candidate_queue:
+            candidate_data = self.ice_candidate_queue.pop(0)
+            try:
+                candidate = ice_candidate_from_json(candidate_data)
+                await self.peer_connection.addIceCandidate(candidate)
+                print(f"[*] Added queued ICE candidate")
+            except Exception as e:
+                print(f"[!] Failed to add queued ICE candidate: {e}")
 
     async def handle_signaling_message(self, msg: Dict[str, Any]):
         """
@@ -480,13 +554,19 @@ class HostApplication:
             await self.peer_connection.setRemoteDescription(
                 RTCSessionDescription(sdp=sdp, type="answer")
             )
+            self._remote_description_set = True
+            await self._flush_ice_candidates()
 
         elif msg_type == MSG_TYPE_ICE_CANDIDATE:
-            # Add ICE candidate
+            # Add ICE candidate - queue if remoteDescription not set yet
             candidate_data = msg.get("candidate")
             if candidate_data:
-                candidate = ice_candidate_from_json(candidate_data)
-                await self.peer_connection.addIceCandidate(candidate)
+                if self._remote_description_set:
+                    candidate = ice_candidate_from_json(candidate_data)
+                    await self.peer_connection.addIceCandidate(candidate)
+                else:
+                    print("[*] Queuing ICE candidate (remoteDescription not set)")
+                    self.ice_candidate_queue.append(candidate_data)
 
         elif msg_type == MSG_TYPE_PEER_DISCONNECTED:
             print("[*] Client disconnected")

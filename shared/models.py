@@ -49,9 +49,12 @@ class InputEvent:
         })
 
     @classmethod
-    def from_json(cls, data: str) -> 'InputEvent':
-        """Create from JSON string"""
-        obj = json.loads(data)
+    def from_json(cls, data) -> 'InputEvent':
+        """Create from JSON string or dict"""
+        if isinstance(data, str):
+            obj = json.loads(data)
+        else:
+            obj = data
         return cls(
             event_type=obj['event_type'],
             x=obj.get('x'),

@@ -139,8 +139,9 @@ export function useWebRTC() {
 
     pc.onicecandidate = (event) => {
       if (event.candidate) {
+        // Use toJSON() to properly serialize the candidate for WebSocket transmission
         sendWsMessage(wsRef.current, MSG_TYPES.ICE_CANDIDATE, {
-          candidate: event.candidate,
+          candidate: event.candidate.toJSON(),
         })
       }
     }
@@ -189,6 +190,17 @@ export function useWebRTC() {
   }, [])
 
   /**
+   * Handle incoming input event from viewer (host-side)
+   * Note: Browser cannot execute system input events - this is logged for debugging
+   * Desktop hosts (host.exe) execute these via pyautogui
+   */
+  const handleInputEvent = useCallback((event) => {
+    console.log('[DC] Input event received:', event)
+    // Browser hosts cannot execute system input due to security restrictions
+    // Desktop hosts use pyautogui via the Python data channel handler
+  }, [])
+
+  /**
    * Setup data channel for input events
    */
   const setupDataChannel = (channel) => {
@@ -205,6 +217,16 @@ export function useWebRTC() {
 
     channel.onmessage = (event) => {
       console.log('[DC] Received:', event.data)
+      try {
+        const inputEvent = JSON.parse(event.data)
+        handleInputEvent(inputEvent)
+      } catch (e) {
+        console.error('[DC] Parse error:', e)
+      }
+    }
+
+    channel.onerror = (error) => {
+      console.error('[DC] Error:', error)
     }
   }
 

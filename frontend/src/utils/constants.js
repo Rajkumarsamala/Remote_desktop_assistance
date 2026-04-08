@@ -1,6 +1,10 @@
-// WebRTC Configuration
+// WebRTC Configuration - STUN + TURN for reliable cross-network connections
 export const ICE_SERVERS = [
-  { urls: "stun:stun.l.google.com:19302" }
+  { urls: "stun:stun.l.google.com:19302" },
+  { urls: "stun:stun1.l.google.com:19302" },
+  { urls: "stun:stun2.l.google.com:19302" },
+  // Free TURN relay for symmetric NATs - openrelay.projectenica.org
+  { urls: "turn:openrelay.projectenica.org:443", username: "openrelay", credential: "openrelay" },
 ]
 
 // Signaling Server URL - use wss:// for secure WebSocket over public internet

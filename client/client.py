@@ -70,37 +70,78 @@ from datetime import datetime
 
 def ice_candidate_to_json(candidate) -> dict:
     """Serialize RTCIceCandidate to JSON-compatible dict."""
+    from aiortc.sdp import candidate_to_sdp
     return {
-        'component': candidate.component,
-        'foundation': candidate.foundation,
-        'ip': candidate.ip,
-        'port': candidate.port,
-        'priority': candidate.priority,
-        'protocol': candidate.protocol,
-        'type': candidate.type,
+        'candidate': f"candidate:{candidate_to_sdp(candidate)}",
         'sdpMid': candidate.sdpMid,
         'sdpMLineIndex': candidate.sdpMLineIndex,
-        'relatedAddress': candidate.relatedAddress,
-        'relatedPort': candidate.relatedPort,
     }
 
 
 def ice_candidate_from_json(data: dict) -> 'RTCIceCandidate':
-    """Create RTCIceCandidate from JSON dict."""
+    """Create RTCIceCandidate from JSON dict.
+
+    Handles two formats:
+    1. Browser format: {'candidate': 'candidate:1 1 UDP ...', 'sdpMid': '0', 'sdpMLineIndex': 0}
+    2. Structured format: {'component': 1, 'foundation': '...', 'ip': '...', etc.}
+    """
     from aiortc import RTCIceCandidate
-    return RTCIceCandidate(
-        component=data['component'],
-        foundation=data['foundation'],
-        ip=data['ip'],
-        port=data['port'],
-        priority=data['priority'],
-        protocol=data['protocol'],
-        type=data['type'],
-        sdpMid=data.get('sdpMid'),
-        sdpMLineIndex=data.get('sdpMLineIndex'),
-        relatedAddress=data.get('relatedAddress'),
-        relatedPort=data.get('relatedPort'),
-    )
+
+    # Check if this is a browser-format candidate (string in 'candidate' field)
+    if 'candidate' in data and isinstance(data['candidate'], str):
+        # Parse browser candidate string: "candidate:1 1 UDP 2128615934 192.168.1.100 56521 typ host"
+        candidate_str = data['candidate']
+        if candidate_str.startswith('candidate:'):
+            candidate_str = candidate_str[10:]  # Remove 'candidate:' prefix
+
+        parts = candidate_str.split()
+        foundation = parts[0]
+        component = int(parts[1])
+        protocol = parts[2].lower()
+        priority = int(parts[3])
+        ip = parts[4]
+        port = int(parts[5])
+
+        # Find 'typ' and get the type
+        typ_idx = parts.index('typ')
+        cand_type = parts[typ_idx + 1]
+
+        # Parse optional related address/port
+        relatedAddress = None
+        relatedPort = None
+        if 'raddr' in parts:
+            raddr_idx = parts.index('raddr')
+            relatedAddress = parts[raddr_idx + 1]
+            relatedPort = int(parts[raddr_idx + 3])  # Skip 'rport'
+
+        return RTCIceCandidate(
+            component=component,
+            foundation=foundation,
+            ip=ip,
+            port=port,
+            priority=priority,
+            protocol=protocol,
+            type=cand_type,
+            sdpMid=data.get('sdpMid'),
+            sdpMLineIndex=data.get('sdpMLineIndex'),
+            relatedAddress=relatedAddress,
+            relatedPort=relatedPort,
+        )
+    else:
+        # Structured format (already parsed)
+        return RTCIceCandidate(
+            component=data['component'],
+            foundation=data['foundation'],
+            ip=data['ip'],
+            port=data['port'],
+            priority=data['priority'],
+            protocol=data['protocol'],
+            type=data['type'],
+            sdpMid=data.get('sdpMid'),
+            sdpMLineIndex=data.get('sdpMLineIndex'),
+            relatedAddress=data.get('relatedAddress'),
+            relatedPort=data.get('relatedPort'),
+        )
 
 
 class InputCapture:
@@ -305,6 +346,10 @@ class ClientApplication:
         self.running = False
         self.host_connected = False
 
+        # ICE candidate queue (for race condition when candidates arrive before remoteDescription)
+        self.ice_candidate_queue = []
+        self._remote_description_set = False
+
         # Stats
         self.bytes_received = 0
         self.frames_received = 0
@@ -321,10 +366,12 @@ class ClientApplication:
         import websockets
 
         try:
-            ws_url = f"ws://{self.signaling_host}:{self.signaling_port}/ws/client:{self.session_code}"
+            # Use wss:// for port 443 (production), ws:// for others
+            protocol = "wss" if self.signaling_port == 443 else "ws"
+            ws_url = f"{protocol}://{self.signaling_host}:{self.signaling_port}/ws/client:{self.session_code}"
             print(f"[*] Connecting to signaling server: {ws_url}")
 
-            self.websocket = await websockets.connect(ws_url)
+            self.websocket = await websockets.connect(ws_url, ping_interval=30, ping_timeout=10)
 
             # Wait for registration confirmation
             msg = await self.websocket.recv()
@@ -354,12 +401,18 @@ class ClientApplication:
         """
         Set up WebRTC peer connection for receiving screen stream.
         """
-        # Create peer connection
+        # Reset ICE queue and remote description state
+        self.ice_candidate_queue = []
+        self._remote_description_set = False
+
+        # Create peer connection with STUN + TURN servers
         config = {
             "iceServers": [
                 {"urls": "stun:stun.l.google.com:19302"},
                 {"urls": "stun:stun1.l.google.com:19302"},
                 {"urls": "stun:stun2.l.google.com:19302"},
+                # Free TURN relay for symmetric NATs
+                {"urls": "turn:openrelay.projectenica.org:443", "username": "openrelay", "credential": "openrelay"},
             ]
         }
         self.peer_connection = RTCPeerConnection()
@@ -451,6 +504,17 @@ class ClientApplication:
             data: Raw message data
         """
         print(f"[DC] Received: {data}")
+
+    async def _flush_ice_candidates(self):
+        """Apply queued ICE candidates after remoteDescription is set."""
+        while self.ice_candidate_queue:
+            candidate_data = self.ice_candidate_queue.pop(0)
+            try:
+                candidate = ice_candidate_from_json(candidate_data)
+                await self.peer_connection.addIceCandidate(candidate)
+                print(f"[*] Added queued ICE candidate")
+            except Exception as e:
+                print(f"[!] Failed to add queued ICE candidate: {e}")
 
     def send_input_event(self, event: InputEvent):
         """
