@@ -98,7 +98,7 @@ export function keyboardEventToInput(event) {
   }
 
   return {
-    event_type: 'keyboard',
+    event_type: event.type === 'keyup' ? 'keyup' : 'keydown',
     key,
     code: event.code,
     ctrl: event.ctrlKey,

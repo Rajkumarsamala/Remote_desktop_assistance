@@ -16,6 +16,7 @@ function RemotePage({ webrtc, onDisconnect }) {
     handleMouseUp,
     handleWheel,
     handleKeyDown,
+    handleKeyUp,
     toggleInput,
     screenRef,
   } = webrtc
@@ -52,6 +53,7 @@ function RemotePage({ webrtc, onDisconnect }) {
       className="min-h-screen bg-black flex items-center justify-center relative"
       tabIndex={0}
       onKeyDown={handleKeyDown}
+      onKeyUp={handleKeyUp}
     >
 
 

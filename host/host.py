@@ -203,10 +203,17 @@ class InputHandler:
                 elif event.button == 'right':
                     pyautogui.mouseUp(button='right')
 
-            elif event.event_type == 'keyboard':
+            elif event.event_type in ('keydown', 'keyup', 'keyboard'):
                 # Handle keyboard input
                 if event.key:
-                    pyautogui.press(event.key)
+                    key = event.key.lower() if isinstance(event.key, str) else event.key
+                    # Prevent breaking on invalid keys
+                    if key in pyautogui.KEYBOARD_KEYS or len(key) == 1:
+                        if event.event_type == 'keyup':
+                            pyautogui.keyUp(key)
+                        else:
+                            # keyDown for both 'keydown' and legacy 'keyboard'
+                            pyautogui.keyDown(key)
 
             elif event.event_type == 'scroll':
                 # Handle scroll

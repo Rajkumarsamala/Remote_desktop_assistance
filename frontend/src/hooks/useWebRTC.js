@@ -356,6 +356,17 @@ export function useWebRTC() {
   }, [connectionState, sendInputEvent])
 
   /**
+   * Handle key up
+   */
+  const handleKeyUp = useCallback((e) => {
+    if (connectionState !== CONNECTION_STATE.CONNECTED) return
+    if (e.target.tagName === 'INPUT') return
+    e.preventDefault()
+    const event = keyboardEventToInput(e)
+    sendInputEvent(event)
+  }, [connectionState, sendInputEvent])
+
+  /**
    * Toggle input control
    */
   const toggleInput = useCallback(() => {
@@ -478,5 +489,6 @@ export function useWebRTC() {
     handleMouseUp,
     handleWheel,
     handleKeyDown,
+    handleKeyUp,
   }
 }
