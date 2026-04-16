@@ -25,6 +25,9 @@ export function useWebRTC() {
   const screenRef = useRef(null)
   const inputEnabledRef = useRef(true)
   const iceCandidateQueueRef = useRef([])
+  const shareModeRef = useRef(null)
+  const remoteModeRef = useRef('monitor')
+  const lastMouseEventRef = useRef(0)
 
   /**
    * Connect to signaling server
@@ -191,13 +194,67 @@ export function useWebRTC() {
 
   /**
    * Handle incoming input event from viewer (host-side)
-   * Note: Browser cannot execute system input events - this is logged for debugging
-   * Desktop hosts (host.exe) execute these via pyautogui
+   * Simulated on DOM elements ONLY if sharing a browser tab.
    */
   const handleInputEvent = useCallback((event) => {
-    console.log('[DC] Input event received:', event)
-    // Browser hosts cannot execute system input due to security restrictions
-    // Desktop hosts use pyautogui via the Python data channel handler
+    // Only allow DOM simulation if we are explicitly sharing a browser tab.
+    if (shareModeRef.current !== 'browser') {
+      return
+    }
+
+    try {
+      if (event.event_type === 'mouse_click') {
+        const el = document.elementFromPoint(event.x, event.y)
+        if (el) {
+          el.dispatchEvent(new MouseEvent('mousedown', {
+            view: window, bubbles: true, cancelable: true,
+            clientX: event.x, clientY: event.y, button: event.button === 'right' ? 2 : 0
+          }))
+          el.dispatchEvent(new MouseEvent('click', {
+            view: window, bubbles: true, cancelable: true,
+            clientX: event.x, clientY: event.y, button: event.button === 'right' ? 2 : 0
+          }))
+        }
+      } else if (event.event_type === 'mouse_release') {
+        const el = document.elementFromPoint(event.x, event.y)
+        if (el) {
+          el.dispatchEvent(new MouseEvent('mouseup', {
+            view: window, bubbles: true, cancelable: true,
+            clientX: event.x, clientY: event.y, button: event.button === 'right' ? 2 : 0
+          }))
+        }
+      } else if (event.event_type === 'scroll') {
+        window.scrollBy({ left: event.delta_x || 0, top: event.delta_y || 0, behavior: 'auto' })
+      } else if (event.event_type === 'keydown' || event.event_type === 'keyup') {
+        const el = document.activeElement || document.body
+        const evtArgs = {
+          key: event.key, code: event.code,
+          ctrlKey: event.ctrl, shiftKey: event.shift, altKey: event.alt,
+          bubbles: true, cancelable: true
+        }
+        el.dispatchEvent(new KeyboardEvent(event.event_type, evtArgs))
+
+        // Auto-inject values for inputs if it's a keydown event (since simulated events don't trigger default text entry)
+        if (event.event_type === 'keydown' && (el.tagName === 'INPUT' || el.tagName === 'TEXTAREA')) {
+           if (event.key && event.key.length === 1 && !event.ctrl && !event.alt) { 
+             const start = el.selectionStart;
+             const end = el.selectionEnd;
+             el.value = el.value.substring(0, start) + event.key + el.value.substring(end);
+             el.selectionStart = el.selectionEnd = start + 1;
+             el.dispatchEvent(new Event('input', { bubbles: true }));
+           } else if (event.key === 'Backspace') {
+             const start = el.selectionStart;
+             if (start > 0) {
+               el.value = el.value.substring(0, start - 1) + el.value.substring(start);
+               el.selectionStart = el.selectionEnd = start - 1;
+               el.dispatchEvent(new Event('input', { bubbles: true }));
+             }
+           }
+        }
+      }
+    } catch (e) {
+      console.error('[DC] Error executing DOM event:', e)
+    }
   }, [])
 
   /**
@@ -209,6 +266,13 @@ export function useWebRTC() {
     channel.onopen = () => {
       console.log('[DC] Open')
       toast.success('Input channel ready!')
+
+      if (isHostRef.current && shareModeRef.current) {
+        channel.send(JSON.stringify({
+          event_type: 'mode_info',
+          mode: shareModeRef.current
+        }))
+      }
     }
 
     channel.onclose = () => {
@@ -216,10 +280,23 @@ export function useWebRTC() {
     }
 
     channel.onmessage = (event) => {
-      console.log('[DC] Received:', event.data)
       try {
         const inputEvent = JSON.parse(event.data)
-        handleInputEvent(inputEvent)
+
+        if (inputEvent.event_type === 'mode_info') {
+          console.log('[DC] Mode set explicitly to:', inputEvent.mode)
+          remoteModeRef.current = inputEvent.mode
+          if (inputEvent.mode === 'window') {
+            toast('Window sharing detected: input control restricted.', { icon: '⚠️' })
+          } else if (inputEvent.mode === 'browser') {
+            toast.success('Tab sharing detected: DOM control enabled.')
+          }
+          return
+        }
+
+        if (isHostRef.current) {
+          handleInputEvent(inputEvent)
+        }
       } catch (e) {
         console.error('[DC] Parse error:', e)
       }
@@ -239,6 +316,11 @@ export function useWebRTC() {
     if (isHostRef.current) {
       try {
         const stream = await navigator.mediaDevices.getDisplayMedia({ video: true, audio: false })
+        const videoTrack = stream.getVideoTracks()[0]
+        if (videoTrack) {
+          const settings = videoTrack.getSettings()
+          shareModeRef.current = settings.displaySurface || 'monitor'
+        }
         stream.getTracks().forEach(track => pc.addTrack(track, stream))
       } catch (e) {
         console.error("Failed to capture screen:", e)
@@ -312,6 +394,12 @@ export function useWebRTC() {
    */
   const handleMouseMove = useCallback((e) => {
     if (connectionState !== CONNECTION_STATE.CONNECTED) return
+
+    // Throttle high-frequency events (~30fps limit)
+    const now = Date.now()
+    if (now - lastMouseEventRef.current < 33) return
+    lastMouseEventRef.current = now
+
     const event = mouseEventToInput(e, screenRef)
     if (event) sendInputEvent(event)
   }, [connectionState, sendInputEvent])

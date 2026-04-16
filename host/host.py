@@ -477,7 +477,12 @@ class HostApplication:
         # Create data channel for input events
         self.data_channel = self.peer_connection.createDataChannel("input")
         self.data_channel.on("message", lambda data: asyncio.create_task(self._handle_input_message(data)))
-        self.data_channel.on("open", lambda: print("[+] Data channel opened"))
+        @self.data_channel.on("open")
+        def on_data_channel_open():
+            print("[+] Data channel opened")
+            # Inform viewer this is a full-screen desktop host
+            mode_msg = json.dumps({"event_type": "mode_info", "mode": "monitor"})
+            self.data_channel.send(mode_msg)
 
         # Create video track
         self.video_track = VideoFrameTrack(self.screen_capture)
