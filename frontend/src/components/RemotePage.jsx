@@ -1,12 +1,13 @@
 import { useRef, useEffect, useState } from 'react'
 import { motion } from 'framer-motion'
-import { X, Mouse, Keyboard, Loader2, Wifi, WifiOff, Maximize } from 'lucide-react'
+import { X, Mouse, Keyboard, Loader2, Wifi, WifiOff, Maximize, Volume2, VolumeX } from 'lucide-react'
 import { CONNECTION_STATE } from '../utils/constants'
 
 function RemotePage({ webrtc, onDisconnect }) {
   const containerRef = useRef(null)
   const [controlEnabled, setControlEnabled] = useState(true)
   const [showControls, setShowControls] = useState(true)
+  const [hasInteracted, setHasInteracted] = useState(false)
 
   const {
     connectionState,
@@ -68,6 +69,14 @@ function RemotePage({ webrtc, onDisconnect }) {
       tabIndex={0}
       onKeyDown={handleKeyDown}
       onKeyUp={handleKeyUp}
+      onClick={() => {
+        if (!hasInteracted) {
+          setHasInteracted(true)
+          if (screenRef.current) {
+            screenRef.current.play().catch(console.error)
+          }
+        }
+      }}
     >
 
 
@@ -105,6 +114,7 @@ function RemotePage({ webrtc, onDisconnect }) {
           ref={screenRef}
           autoPlay
           playsInline
+          muted={!hasInteracted}
           className="w-full h-full object-contain bg-black"
         />
 
@@ -140,6 +150,17 @@ function RemotePage({ webrtc, onDisconnect }) {
                   <div className="flex items-center gap-2 text-sm text-white/50">
                     <Mouse className="w-4 h-4" />
                     <span>{controlEnabled ? 'Control On' : 'Control Off'}</span>
+                  </div>
+                )}
+
+                {isConnected && (
+                  <div className="h-4 w-px bg-white/20" />
+                )}
+
+                {isConnected && (
+                  <div className="flex items-center gap-2 text-sm text-white/50">
+                    {hasInteracted ? <Volume2 className="w-4 h-4 text-accent-green" /> : <VolumeX className="w-4 h-4 text-red-400" />}
+                    <span className={hasInteracted ? "text-accent-green" : "text-red-400"}>{hasInteracted ? 'Sound On' : 'Click to Unmute'}</span>
                   </div>
                 )}
               </div>

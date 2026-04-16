@@ -45,7 +45,7 @@ from shared.models import InputEvent, SessionState
 
 # WebRTC imports - use aiortc for Python
 try:
-    from aiortc import RTCPeerConnection, RTCSessionDescription, VideoStreamTrack
+    from aiortc import RTCPeerConnection, RTCSessionDescription, VideoStreamTrack, MediaStreamTrack
     from aiortc.contrib.media import MediaPlayer, MediaRecorder, MediaBlackhole
     import av
     AIORTC_AVAILABLE = True
@@ -236,6 +236,100 @@ class InputHandler:
             print(f"[!] Input error: {e}")
 
 
+class SystemAudioTrack(MediaStreamTrack):
+    """
+    Custom AudioStreamTrack that continuously sends system audio looping back.
+    Used for WebRTC audio streaming.
+    """
+    kind = "audio"
+
+    def __init__(self):
+        super().__init__()
+        import pyaudiowpatch as pyaudio
+        import queue
+        self.audio_queue = queue.Queue(maxsize=100)
+        self.p_audio = pyaudio.PyAudio()
+        
+        try:
+            wasapi_info = self.p_audio.get_host_api_info_by_type(pyaudio.paWASAPI)
+            default_speakers = self.p_audio.get_device_info_by_index(wasapi_info["defaultOutputDevice"])
+            
+            loopback_device = None
+            if not default_speakers["isLoopbackDevice"]:
+                for loopback in self.p_audio.get_loopback_device_info_generator():
+                    # Find loopback for default speaker
+                    if default_speakers["name"] in loopback["name"]:
+                        loopback_device = loopback
+                        break
+                if not loopback_device:
+                    loopback_device = self.p_audio.get_default_wasapi_loopback()
+            else:
+                loopback_device = default_speakers
+        except Exception as e:
+            print(f"[*] Could not find WASAPI loopback, falling back to default input: {e}")
+            loopback_device = self.p_audio.get_default_input_device_info()
+            
+        self.sample_rate = int(loopback_device["defaultSampleRate"])
+        self.channels = loopback_device["maxInputChannels"]
+        
+        def callback(in_data, frame_count, time_info, status):
+            if not self.audio_queue.full():
+                self.audio_queue.put(in_data)
+            return (None, pyaudio.paContinue)
+            
+        self.stream = self.p_audio.open(
+            format=pyaudio.paInt16,
+            channels=self.channels,
+            rate=self.sample_rate,
+            frames_per_buffer=int(self.sample_rate * 0.02), # 20ms chunks
+            input=True,
+            input_device_index=loopback_device["index"],
+            stream_callback=callback
+        )
+        self.time_base = Fraction(1, self.sample_rate)
+        self.pts = 0
+
+    async def recv(self):
+        """Receive next audio frame."""
+        import av
+        
+        # Pull from queue without blocking asyncio loop
+        try:
+            in_data = await asyncio.get_event_loop().run_in_executor(None, self.audio_queue.get)
+        except Exception:
+            await asyncio.sleep(0.02)
+            in_data = b'\x00' * (int(self.sample_rate * 0.02) * self.channels * 2)
+
+        audio_array = np.frombuffer(in_data, dtype=np.int16)
+        
+        # Calculate samples per channel
+        samples = len(audio_array) // self.channels
+        if samples == 0:
+            await asyncio.sleep(0.01)
+            audio_array = np.zeros(int(self.sample_rate * 0.02) * self.channels, dtype=np.int16)
+            samples = len(audio_array) // self.channels
+
+        # Format layout for planar 's16p' expected by av
+        audio_array = audio_array.reshape((samples, self.channels)).T.copy()
+        layout = 'stereo' if self.channels == 2 else 'mono'
+        
+        frame = av.AudioFrame.from_ndarray(audio_array, format='s16p', layout=layout)
+        frame.sample_rate = self.sample_rate
+        frame.pts = self.pts
+        self.pts += samples
+        frame.time_base = self.time_base
+
+        return frame
+
+    def stop(self):
+        super().stop()
+        if hasattr(self, 'stream') and self.stream.is_active():
+            self.stream.stop_stream()
+            self.stream.close()
+        if hasattr(self, 'p_audio'):
+            self.p_audio.terminate()
+
+
 class VideoFrameTrack(VideoStreamTrack):
     """
     Custom VideoStreamTrack that continuously sends screen frames.
@@ -390,6 +484,7 @@ class HostApplication:
         self.peer_connection: Optional[RTCPeerConnection] = None
         self.data_channel = None
         self.video_track = None
+        self.audio_track = None
 
         # State
         self.session_code: Optional[str] = None
@@ -499,6 +594,10 @@ class HostApplication:
         # Create video track
         self.video_track = VideoFrameTrack(self.screen_capture)
         self.peer_connection.addTrack(self.video_track)
+
+        # Create audio track
+        self.audio_track = SystemAudioTrack()
+        self.peer_connection.addTrack(self.audio_track)
 
         # Set up ICE candidates handler
         @self.peer_connection.on("icecandidate")
@@ -738,5 +837,12 @@ if __name__ == "__main__":
         print("[!] Installing pyautogui...")
         os.system("pip install pyautogui")
         import pyautogui
+
+    try:
+        import pyaudiowpatch
+    except ImportError:
+        print("[!] Installing pyaudiowpatch...")
+        os.system("pip install pyaudiowpatch")
+        import pyaudiowpatch
 
     asyncio.run(main())
