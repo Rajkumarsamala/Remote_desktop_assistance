@@ -58,10 +58,12 @@ except ImportError:
 try:
     import mss
     import pyautogui
+    from pynput.keyboard import Controller, Key
+    keyboard_controller = Controller()
     pyautogui.FAILSAFE = False  # Disable failsafe to allow corner access during remote control
     pyautogui.PAUSE = 0  # No pause between actions
 except ImportError:
-    print("[!] mss or pyautogui not installed")
+    print("[!] mss, pyautogui, or pynput not installed")
     sys.exit(1)
 
 # Image processing
@@ -189,31 +191,41 @@ class InputHandler:
                 self.last_x, self.last_y = event.x, event.y
 
             elif event.event_type == 'mouse_click':
-                # Handle mouse click at position
+                # Handle mouse click (down) at position to allow dragging
                 if event.button == 'left':
-                    pyautogui.click(event.x, event.y, button='left')
+                    pyautogui.mouseDown(event.x, event.y, button='left')
                 elif event.button == 'right':
-                    pyautogui.click(event.x, event.y, button='right')
+                    pyautogui.mouseDown(event.x, event.y, button='right')
                 elif event.button == 'middle':
-                    pyautogui.click(event.x, event.y, button='middle')
+                    pyautogui.mouseDown(event.x, event.y, button='middle')
 
             elif event.event_type == 'mouse_release':
+                # Handle mouse release to end drag or click
                 if event.button == 'left':
                     pyautogui.mouseUp(button='left')
                 elif event.button == 'right':
                     pyautogui.mouseUp(button='right')
 
             elif event.event_type in ('keydown', 'keyup', 'keyboard'):
-                # Handle keyboard input
+                # Handle keyboard input accurately with pynput
                 if event.key:
-                    key = event.key.lower() if isinstance(event.key, str) else event.key
-                    # Prevent breaking on invalid keys
-                    if key in pyautogui.KEYBOARD_KEYS or len(key) == 1:
-                        if event.event_type == 'keyup':
-                            pyautogui.keyUp(key)
+                    try:
+                        key_str = str(event.key).lower()
+                        if key_str == 'win':
+                            key_str = 'cmd'
+                        
+                        # Handle special vs standard characters
+                        if hasattr(Key, key_str):
+                            k = getattr(Key, key_str)
                         else:
-                            # keyDown for both 'keydown' and legacy 'keyboard'
-                            pyautogui.keyDown(key)
+                            k = event.key
+                            
+                        if event.event_type == 'keyup':
+                            keyboard_controller.release(k)
+                        else:
+                            keyboard_controller.press(k)
+                    except Exception as exc:
+                        print(f"[!] Key error: {exc}")
 
             elif event.event_type == 'scroll':
                 # Handle scroll

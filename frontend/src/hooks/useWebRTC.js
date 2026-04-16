@@ -197,64 +197,9 @@ export function useWebRTC() {
    * Simulated on DOM elements ONLY if sharing a browser tab.
    */
   const handleInputEvent = useCallback((event) => {
-    // Only allow DOM simulation if we are explicitly sharing a browser tab.
-    if (shareModeRef.current !== 'browser') {
-      return
-    }
-
-    try {
-      if (event.event_type === 'mouse_click') {
-        const el = document.elementFromPoint(event.x, event.y)
-        if (el) {
-          el.dispatchEvent(new MouseEvent('mousedown', {
-            view: window, bubbles: true, cancelable: true,
-            clientX: event.x, clientY: event.y, button: event.button === 'right' ? 2 : 0
-          }))
-          el.dispatchEvent(new MouseEvent('click', {
-            view: window, bubbles: true, cancelable: true,
-            clientX: event.x, clientY: event.y, button: event.button === 'right' ? 2 : 0
-          }))
-        }
-      } else if (event.event_type === 'mouse_release') {
-        const el = document.elementFromPoint(event.x, event.y)
-        if (el) {
-          el.dispatchEvent(new MouseEvent('mouseup', {
-            view: window, bubbles: true, cancelable: true,
-            clientX: event.x, clientY: event.y, button: event.button === 'right' ? 2 : 0
-          }))
-        }
-      } else if (event.event_type === 'scroll') {
-        window.scrollBy({ left: event.delta_x || 0, top: event.delta_y || 0, behavior: 'auto' })
-      } else if (event.event_type === 'keydown' || event.event_type === 'keyup') {
-        const el = document.activeElement || document.body
-        const evtArgs = {
-          key: event.key, code: event.code,
-          ctrlKey: event.ctrl, shiftKey: event.shift, altKey: event.alt,
-          bubbles: true, cancelable: true
-        }
-        el.dispatchEvent(new KeyboardEvent(event.event_type, evtArgs))
-
-        // Auto-inject values for inputs if it's a keydown event (since simulated events don't trigger default text entry)
-        if (event.event_type === 'keydown' && (el.tagName === 'INPUT' || el.tagName === 'TEXTAREA')) {
-           if (event.key && event.key.length === 1 && !event.ctrl && !event.alt) { 
-             const start = el.selectionStart;
-             const end = el.selectionEnd;
-             el.value = el.value.substring(0, start) + event.key + el.value.substring(end);
-             el.selectionStart = el.selectionEnd = start + 1;
-             el.dispatchEvent(new Event('input', { bubbles: true }));
-           } else if (event.key === 'Backspace') {
-             const start = el.selectionStart;
-             if (start > 0) {
-               el.value = el.value.substring(0, start - 1) + el.value.substring(start);
-               el.selectionStart = el.selectionEnd = start - 1;
-               el.dispatchEvent(new Event('input', { bubbles: true }));
-             }
-           }
-        }
-      }
-    } catch (e) {
-      console.error('[DC] Error executing DOM event:', e)
-    }
+    // DOM simulation has been removed for production-level desktop native execution.
+    // The browser host will not securely execute OS-level events.
+    console.log('[DC] Input event logged securely:', event.event_type);
   }, [])
 
   /**

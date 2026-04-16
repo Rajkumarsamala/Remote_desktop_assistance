@@ -1,6 +1,6 @@
 import { useRef, useEffect, useState } from 'react'
 import { motion } from 'framer-motion'
-import { X, Mouse, Keyboard, Loader2, Wifi, WifiOff } from 'lucide-react'
+import { X, Mouse, Keyboard, Loader2, Wifi, WifiOff, Maximize } from 'lucide-react'
 import { CONNECTION_STATE } from '../utils/constants'
 
 function RemotePage({ webrtc, onDisconnect }) {
@@ -42,6 +42,20 @@ function RemotePage({ webrtc, onDisconnect }) {
   const handleToggleControl = () => {
     const newState = toggleInput()
     setControlEnabled(newState)
+  }
+
+  // Handle Fullscreen toggle
+  const handleFullscreen = async (e) => {
+    e.stopPropagation()
+    if (!document.fullscreenElement) {
+      if (containerRef.current?.requestFullscreen) {
+        await containerRef.current.requestFullscreen()
+      }
+    } else {
+      if (document.exitFullscreen) {
+        await document.exitFullscreen()
+      }
+    }
   }
 
   const isConnected = connectionState === CONNECTION_STATE.CONNECTED
@@ -159,6 +173,18 @@ function RemotePage({ webrtc, onDisconnect }) {
                   </motion.button>
                 )}
 
+                {/* Fullscreen Toggle */}
+                {isConnected && (
+                  <motion.button
+                    whileHover={{ scale: 1.05 }}
+                    whileTap={{ scale: 0.95 }}
+                    onClick={handleFullscreen}
+                    className="flex items-center gap-2 px-3 py-2 rounded-xl bg-white/10 text-white/80 hover:bg-white/20 transition-all"
+                  >
+                    <Maximize className="w-5 h-5" />
+                  </motion.button>
+                )}
+
                 {/* Disconnect */}
                 <motion.button
                   whileHover={{ scale: 1.05 }}
@@ -170,7 +196,7 @@ function RemotePage({ webrtc, onDisconnect }) {
                   className="flex items-center gap-2 px-4 py-2 rounded-xl bg-red-500/20 text-red-400 hover:bg-red-500/30 transition-all"
                 >
                   <X className="w-4 h-4" />
-                  <span>Disconnect</span>
+                  <span className="hidden sm:inline">Disconnect</span>
                 </motion.button>
               </div>
             </div>
