@@ -61,7 +61,7 @@ try:
     from pynput.keyboard import Controller, Key
     keyboard_controller = Controller()
     pyautogui.FAILSAFE = False  # Disable failsafe to allow corner access during remote control
-    pyautogui.PAUSE = 0  # No pause between actions
+    pyautogui.PAUSE = 0.0  # No pause between actions
 except ImportError:
     print("[!] mss, pyautogui, or pynput not installed")
     sys.exit(1)
@@ -187,17 +187,18 @@ class InputHandler:
         try:
             if event.event_type == 'mouse_move':
                 # Move mouse to absolute position
-                pyautogui.moveTo(event.x, event.y, duration=0)
+                pyautogui.moveTo(event.x, event.y, duration=0.0)
                 self.last_x, self.last_y = event.x, event.y
 
             elif event.event_type == 'mouse_click':
                 # Handle mouse click (down) at position to allow dragging
+                pyautogui.moveTo(event.x, event.y, duration=0.0)
                 if event.button == 'left':
-                    pyautogui.mouseDown(event.x, event.y, button='left')
+                    pyautogui.mouseDown(button='left')
                 elif event.button == 'right':
-                    pyautogui.mouseDown(event.x, event.y, button='right')
+                    pyautogui.mouseDown(button='right')
                 elif event.button == 'middle':
-                    pyautogui.mouseDown(event.x, event.y, button='middle')
+                    pyautogui.mouseDown(button='middle')
 
             elif event.event_type == 'mouse_release':
                 # Handle mouse release to end drag or click
@@ -205,6 +206,8 @@ class InputHandler:
                     pyautogui.mouseUp(button='left')
                 elif event.button == 'right':
                     pyautogui.mouseUp(button='right')
+                elif event.button == 'middle':
+                    pyautogui.mouseUp(button='middle')
 
             elif event.event_type in ('keydown', 'keyup', 'keyboard'):
                 # Handle keyboard input accurately with pynput
@@ -217,8 +220,12 @@ class InputHandler:
                         # Handle special vs standard characters
                         if hasattr(Key, key_str):
                             k = getattr(Key, key_str)
-                        else:
+                        elif len(event.key) == 1:
+                            # Exact character match (handles case-sensitivity without converting to lower)
                             k = event.key
+                        else:
+                            # Safely drop dead keys
+                            return
                             
                         if event.event_type == 'keyup':
                             keyboard_controller.release(k)

@@ -29,11 +29,37 @@ export function mouseEventToInput(event, screenRef) {
   if (!video) return null
 
   const rect = video.getBoundingClientRect()
-  const scaleX = video.videoWidth / rect.width
-  const scaleY = video.videoHeight / rect.height
+  
+  // Calculate displayed video dimensions and offset due to object-contain
+  const videoRatio = video.videoWidth / (video.videoHeight || 1);
+  const containerRatio = rect.width / (rect.height || 1);
 
-  const x = Math.round((event.clientX - rect.left) * scaleX)
-  const y = Math.round((event.clientY - rect.top) * scaleY)
+  let displayWidth, displayHeight, offsetX = 0, offsetY = 0;
+
+  if (containerRatio > videoRatio) {
+    // Window is wider than video (pillarbox) - black bars left/right
+    displayHeight = rect.height;
+    displayWidth = displayHeight * videoRatio;
+    offsetX = (rect.width - displayWidth) / 2;
+  } else {
+    // Window is taller than video (letterbox) - black bars top/bottom
+    displayWidth = rect.width;
+    displayHeight = displayWidth / videoRatio;
+    offsetY = (rect.height - displayHeight) / 2;
+  }
+
+  const clientX = event.clientX - rect.left - offsetX;
+  const clientY = event.clientY - rect.top - offsetY;
+
+  // Clamp interactions to the strict video box boundary
+  const clampedX = Math.max(0, Math.min(clientX, displayWidth));
+  const clampedY = Math.max(0, Math.min(clientY, displayHeight));
+
+  const scaleX = video.videoWidth / displayWidth;
+  const scaleY = video.videoHeight / displayHeight;
+
+  const x = Math.round(clampedX * scaleX)
+  const y = Math.round(clampedY * scaleY)
 
   let eventType = 'mouse_move'
   let button = null
@@ -87,7 +113,8 @@ export function keyboardEventToInput(event) {
     'Shift': 'shift',
     'Control': 'ctrl',
     'Alt': 'alt',
-    'Meta': 'win',
+    'Meta': 'cmd',
+    'OS': 'cmd',
   }
 
   let key = event.key

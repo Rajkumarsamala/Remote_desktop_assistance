@@ -267,7 +267,7 @@ function RemotePage({ webrtc, onDisconnect }) {
 
           {/* Video element */}
           <div
-            className="w-full h-full relative cursor-crosshair bg-black/50 backdrop-blur-sm"
+            className={`w-full h-full relative bg-black/50 backdrop-blur-sm ${controlEnabled && isConnected ? 'cursor-none' : 'cursor-default'}`}
             onMouseMove={controlEnabled && isConnected ? handleMouseMove : undefined}
             onMouseDown={controlEnabled && isConnected ? handleMouseDown : undefined}
             onMouseUp={controlEnabled && isConnected ? handleMouseUp : undefined}
