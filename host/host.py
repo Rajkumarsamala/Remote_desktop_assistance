@@ -235,9 +235,12 @@ class InputHandler:
                         print(f"[!] Key error: {exc}")
 
             elif event.event_type == 'scroll':
-                # Handle scroll
+                # Handle scroll safely determining direction
                 delta = event.delta_y if event.delta_y else 0
-                pyautogui.scroll(int(delta / 120))  # Scroll clicks
+                if delta > 0:
+                    pyautogui.scroll(-120)  # Scroll down
+                elif delta < 0:
+                    pyautogui.scroll(120)   # Scroll up
 
         except Exception as e:
             print(f"[!] Input error: {e}")

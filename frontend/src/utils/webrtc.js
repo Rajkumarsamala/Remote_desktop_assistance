@@ -26,7 +26,7 @@ export function createDataChannel(pc) {
  */
 export function mouseEventToInput(event, screenRef) {
   const video = screenRef?.current
-  if (!video) return null
+  if (!video || !video.videoWidth || !video.videoHeight) return null
 
   const rect = video.getBoundingClientRect()
   
