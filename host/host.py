@@ -24,6 +24,22 @@ from fractions import Fraction
 import argparse
 import tkinter as tk
 from tkinter import ttk
+
+import sys
+import os
+
+# PyInstaller --noconsole stdout fix
+if sys.stdout is None:
+    sys.stdout = open(os.devnull, 'w')
+if sys.stderr is None:
+    sys.stderr = open(os.devnull, 'w')
+
+def safe_log(*args, **kwargs):
+    try:
+        sys.stdout.write(' '.join(map(str, args)) + '\n')
+    except Exception:
+        pass
+
 from aiortc import RTCPeerConnection, RTCSessionDescription, RTCIceCandidate, RTCConfiguration, RTCIceServer
 
 # Add parent directory to path
@@ -53,7 +69,7 @@ try:
     AIORTC_AVAILABLE = True
 except ImportError:
     AIORTC_AVAILABLE = False
-    print("[!] aiortc not installed. Installing...")
+    safe_log("[!] aiortc not installed. Installing...")
     os.system("pip install aiortc av")
 
 # Screen capture imports
@@ -65,7 +81,7 @@ try:
     pyautogui.FAILSAFE = False  # Disable failsafe to allow corner access during remote control
     pyautogui.PAUSE = 0.0  # No pause between actions
 except ImportError:
-    print("[!] mss, pyautogui, or pynput not installed")
+    safe_log("[!] mss, pyautogui, or pynput not installed")
     sys.exit(1)
 
 # Image processing
@@ -187,15 +203,15 @@ class InputHandler:
             event: InputEvent object containing event details
         """
         try:
-            print(f"Received: {event.event_type} at {event.x}, {event.y}")
+            safe_log(f"Received: {event.event_type} at {event.x}, {event.y}")
             if event.event_type == 'mouse_move':
                 # Move mouse to absolute position
-                pyautogui.moveTo(event.x, event.y, duration=0.0)
+                pyautogui.moveTo(int(event.x), int(event.y), duration=0.0)
                 self.last_x, self.last_y = event.x, event.y
 
             elif event.event_type == 'mouse_down':
                 # Handle mouse click (down) at position to allow dragging
-                pyautogui.moveTo(event.x, event.y, duration=0.0)
+                pyautogui.moveTo(int(event.x), int(event.y), duration=0.0)
                 if event.button == 'left':
                     pyautogui.mouseDown(button='left')
                 elif event.button == 'right':
@@ -235,7 +251,7 @@ class InputHandler:
                         else:
                             keyboard_controller.press(k)
                     except Exception as exc:
-                        print(f"[!] Key error: {exc}")
+                        safe_log(f"[!] Key error: {exc}")
 
             elif event.event_type == 'scroll':
                 # Handle scroll safely determining direction
@@ -246,7 +262,7 @@ class InputHandler:
                     pyautogui.scroll(120)   # Scroll up
 
         except Exception as e:
-            print(f"[!] Input error: {e}")
+            safe_log(f"[!] Input error: {e}")
 
 
 class SystemAudioTrack(MediaStreamTrack):
@@ -279,7 +295,7 @@ class SystemAudioTrack(MediaStreamTrack):
             else:
                 loopback_device = default_speakers
         except Exception as e:
-            print(f"[*] Could not find WASAPI loopback, falling back to default input: {e}")
+            safe_log(f"[*] Could not find WASAPI loopback, falling back to default input: {e}")
             loopback_device = self.p_audio.get_default_input_device_info()
             
         self.sample_rate = int(loopback_device["defaultSampleRate"])
@@ -533,10 +549,10 @@ class HostApplication:
                         data = await response.json()
                         return data.get("code")
                     else:
-                        print(f"[!] Failed to create session: {response.status}")
+                        safe_log(f"[!] Failed to create session: {response.status}")
                         return None
         except Exception as e:
-            print(f"[!] Error creating session: {e}")
+            safe_log(f"[!] Error creating session: {e}")
             return None
 
     async def connect_signaling(self, session_code: str) -> bool:
@@ -557,7 +573,7 @@ class HostApplication:
             protocol = "wss" if self.signaling_port == 443 else "ws"
             port_str = "" if self.signaling_port in [80, 443] else f":{self.signaling_port}"
             ws_url = f"{protocol}://{self.signaling_host}{port_str}/ws/host:{session_code}"
-            print(f"[*] Connecting to signaling server: {ws_url}")
+            safe_log(f"[*] Connecting to signaling server: {ws_url}")
 
             self.websocket = await websockets.connect(ws_url, ping_interval=30, ping_timeout=10)
 
@@ -566,14 +582,14 @@ class HostApplication:
             data = json.loads(msg)
 
             if data.get("type") == MSG_TYPE_HOST_REGISTERED:
-                print(f"[+] Registered as host for session {session_code}")
+                safe_log(f"[+] Registered as host for session {session_code}")
                 return True
             else:
-                print(f"[!] Unexpected message: {data}")
+                safe_log(f"[!] Unexpected message: {data}")
                 return False
 
         except Exception as e:
-            print(f"[!] Signaling connection error: {e}")
+            safe_log(f"[!] Signaling connection error: {e}")
             return False
 
     async def setup_webrtc(self):
@@ -599,7 +615,7 @@ class HostApplication:
         self.data_channel.on("message", lambda data: asyncio.create_task(self._handle_input_message(data)))
         @self.data_channel.on("open")
         def on_data_channel_open():
-            print("[+] Data channel opened")
+            safe_log("[+] Data channel opened")
             # Inform viewer this is a full-screen desktop host
             mode_msg = json.dumps({"event_type": "mode_info", "mode": "monitor"})
             self.data_channel.send(mode_msg)
@@ -624,21 +640,21 @@ class HostApplication:
         # Set up ICE connection state to detect when remote description is set
         @self.peer_connection.on("iceconnectionstatechange")
         def on_ice_connection_state_change():
-            print(f"[*] ICE connection state: {self.peer_connection.iceConnectionState}")
+            safe_log(f"[*] ICE connection state: {self.peer_connection.iceConnectionState}")
 
         # Set up connection state handler
         @self.peer_connection.on("connectionstatechange")
         def on_connection_state_change():
             state = self.peer_connection.connection_state
-            print(f"[*] Connection state: {state}")
+            safe_log(f"[*] Connection state: {state}")
 
             if state == "connected":
                 self.client_connected = True
                 self.start_time = time.time()
-                print("[+] Client connected!")
+                safe_log("[+] Client connected!")
             elif state in ["disconnected", "failed", "closed"]:
                 self.client_connected = False
-                print("[-] Client disconnected")
+                safe_log("[-] Client disconnected")
 
     async def _handle_input_message(self, data):
         """
@@ -648,11 +664,11 @@ class HostApplication:
             data: JSON string with input event details
         """
         try:
-            print(f"[DC] Received input event: {data}")
+            safe_log(f"[DC] Received input event: {data}")
             event = InputEvent.from_json(data)
             self.input_handler.execute_event(event)
         except Exception as e:
-            print(f"[!] Input error: {e}")
+            safe_log(f"[!] Input error: {e}")
 
     async def _flush_ice_candidates(self):
         """Apply queued ICE candidates after remoteDescription is set."""
@@ -661,9 +677,9 @@ class HostApplication:
             try:
                 candidate = ice_candidate_from_json(candidate_data)
                 await self.peer_connection.addIceCandidate(candidate)
-                print(f"[*] Added queued ICE candidate")
+                safe_log(f"[*] Added queued ICE candidate")
             except Exception as e:
-                print(f"[!] Failed to add queued ICE candidate: {e}")
+                safe_log(f"[!] Failed to add queued ICE candidate: {e}")
 
     async def handle_signaling_message(self, msg: Dict[str, Any]):
         """
@@ -675,18 +691,18 @@ class HostApplication:
         msg_type = msg.get("type")
 
         if msg_type == "client_joined":
-            print("[*] Client connected, creating offer...")
+            safe_log("[*] Client connected, creating offer...")
             offer = await self.peer_connection.createOffer()
             await self.peer_connection.setLocalDescription(offer)
             await self.websocket.send(json.dumps({
                 "type": MSG_TYPE_OFFER,
                 "sdp": self.peer_connection.localDescription.sdp
             }))
-            print("[*] Offer sent")
+            safe_log("[*] Offer sent")
 
         elif msg_type == MSG_TYPE_ANSWER:
             sdp = msg.get("sdp")
-            print("[*] Received answer")
+            safe_log("[*] Received answer")
             await self.peer_connection.setRemoteDescription(
                 RTCSessionDescription(sdp=sdp, type="answer")
             )
@@ -701,11 +717,11 @@ class HostApplication:
                     candidate = ice_candidate_from_json(candidate_data)
                     await self.peer_connection.addIceCandidate(candidate)
                 else:
-                    print("[*] Queuing ICE candidate (remoteDescription not set)")
+                    safe_log("[*] Queuing ICE candidate (remoteDescription not set)")
                     self.ice_candidate_queue.append(candidate_data)
 
         elif msg_type == MSG_TYPE_PEER_DISCONNECTED:
-            print("[*] Client disconnected")
+            safe_log("[*] Client disconnected")
             self.client_connected = False
 
     async def signaling_loop(self):
@@ -718,47 +734,47 @@ class HostApplication:
                 data = json.loads(msg)
                 await self.handle_signaling_message(data)
         except websockets.exceptions.ConnectionClosed:
-            print("[*] Signaling connection closed")
+            safe_log("[*] Signaling connection closed")
         except Exception as e:
-            print(f"[!] Signaling error: {e}")
+            safe_log(f"[!] Signaling error: {e}")
 
     async def run(self):
         """
         Main run loop for the host application.
         """
-        print("=" * 60)
-        print("  RemoteView Host - Screen Sharing")
-        print("=" * 60)
+        safe_log("=" * 60)
+        safe_log("  RemoteView Host - Screen Sharing")
+        safe_log("=" * 60)
 
         # Step 1: Create session
-        print("[*] Creating session...")
+        safe_log("[*] Creating session...")
         self.session_code = await self.create_session()
 
         if not self.session_code:
-            print("[!] Failed to create session")
+            safe_log("[!] Failed to create session")
             return
 
-        print(f"[+] Session created: {self.session_code}")
-        print(f"[*] Share this code with the viewer")
+        safe_log(f"[+] Session created: {self.session_code}")
+        safe_log(f"[*] Share this code with the viewer")
 
         # Step 2: Connect to signaling
-        print("[*] Connecting to signaling server...")
+        safe_log("[*] Connecting to signaling server...")
         if not await self.connect_signaling(self.session_code):
-            print("[!] Failed to connect to signaling server")
+            safe_log("[!] Failed to connect to signaling server")
             return
 
         # Step 3: Set up WebRTC
-        print("[*] Setting up WebRTC connection...")
+        safe_log("[*] Setting up WebRTC connection...")
         await self.setup_webrtc()
 
         # Step 4: Start screen capture
         self.screen_capture.start()
-        print(f"[*] Screen capture started ({self.screen_capture.fps} FPS)")
+        safe_log(f"[*] Screen capture started ({self.screen_capture.fps} FPS)")
 
         # Step 5: Run main loop
         self.running = True
-        print("[*] Host is running. Press Ctrl+C to stop.")
-        print("=" * 60)
+        safe_log("[*] Host is running. Press Ctrl+C to stop.")
+        safe_log("=" * 60)
 
         try:
             # Run signaling and stats in parallel
@@ -768,7 +784,7 @@ class HostApplication:
             await asyncio.gather(signaling_task, stats_task)
 
         except KeyboardInterrupt:
-            print("\n[*] Shutting down...")
+            safe_log("\n[*] Shutting down...")
         finally:
             await self.shutdown()
 
@@ -778,13 +794,13 @@ class HostApplication:
             await asyncio.sleep(5)
             if self.client_connected and self.start_time:
                 elapsed = time.time() - self.start_time
-                print(f"[*] Stats: {self.frames_sent} frames, "
+                safe_log(f"[*] Stats: {self.frames_sent} frames, "
                       f"{self.bytes_sent / 1024 / 1024:.1f} MB sent, "
                       f"{self.frames_sent / elapsed:.1f} FPS")
 
     async def shutdown(self):
         """Clean shutdown."""
-        print("[*] Closing connections...")
+        safe_log("[*] Closing connections...")
         self.running = False
 
         if self.peer_connection:
@@ -794,7 +810,7 @@ class HostApplication:
             await self.websocket.close()
 
         self.screen_capture.stop()
-        print("[*] Host stopped")
+        safe_log("[*] Host stopped")
 
 
 class HostUI:
@@ -859,7 +875,7 @@ class HostUI:
             try:
                 self.loop.run_until_complete(self.host_app.run())
             except Exception as e:
-                print(f"Asyncio loop error: {e}")
+                safe_log(f"Asyncio loop error: {e}")
             finally:
                 self.loop.close()
                 
@@ -906,7 +922,7 @@ class HostUI:
 if __name__ == "__main__":
     # Check dependencies
     if not AIORTC_AVAILABLE:
-        print("[!] Please install aiortc: pip install aiortc av")
+        safe_log("[!] Please install aiortc: pip install aiortc av")
         sys.exit(1)
 
     def create_host_app():
