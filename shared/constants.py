@@ -21,12 +21,14 @@ TURN_SERVERS = [
     #"turn:your-turn-server.com:3478",  # Add your TURN server here if needed
 ]
 
+TURN_URL = os.getenv("TURN_URL", "turn:openrelay.metered.ca:443")
+TURN_USERNAME = os.getenv("TURN_USERNAME", "openrelayproject")
+TURN_PASSWORD = os.getenv("TURN_PASSWORD", "openrelayproject")
+
 ICESERVERS = [
     {"urls": "stun:stun.l.google.com:19302"},
     {"urls": "stun:stun1.l.google.com:19302"},
-    {"urls": "turn:openrelay.metered.ca:80", "username": "openrelayproject", "credential": "openrelayproject"},
-    {"urls": "turn:openrelay.metered.ca:443", "username": "openrelayproject", "credential": "openrelayproject"},
-    {"urls": "turn:openrelay.metered.ca:443?transport=tcp", "username": "openrelayproject", "credential": "openrelayproject"},
+    {"urls": TURN_URL, "username": TURN_USERNAME, "credential": TURN_PASSWORD},
 ]
 
 # WebRTC configuration

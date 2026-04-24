@@ -23,6 +23,7 @@ export function useWebRTC() {
   const wsRef = useRef(null)
   const dataChannelRef = useRef(null)
   const screenRef = useRef(null)
+  const iceTimeoutRef = useRef(null)
   const inputEnabledRef = useRef(true)
   const iceCandidateQueueRef = useRef([])
   const shareModeRef = useRef(null)
@@ -164,12 +165,24 @@ export function useWebRTC() {
     pc.onconnectionstatechange = () => {
       console.log("Connection state:", pc.connectionState)
       console.log('[PC] State:', pc.connectionState)
-      if (pc.connectionState === 'connected') {
+      
+      if (pc.connectionState === 'connecting') {
+        setConnectionState(CONNECTION_STATE.CONNECTING)
+        if (iceTimeoutRef.current) clearTimeout(iceTimeoutRef.current);
+        iceTimeoutRef.current = setTimeout(() => {
+          if (pcRef.current && pcRef.current.connectionState !== 'connected') {
+            toast.error('Connection stalled - ICE route failed. Please verify TURN relay restrictions.');
+            disconnect();
+          }
+        }, 15000);
+      } else if (pc.connectionState === 'connected') {
+        if (iceTimeoutRef.current) clearTimeout(iceTimeoutRef.current);
         setConnectionState(CONNECTION_STATE.CONNECTED)
       } else if (['disconnected', 'failed', 'closed'].includes(pc.connectionState)) {
+        if (iceTimeoutRef.current) clearTimeout(iceTimeoutRef.current);
         setConnectionState(CONNECTION_STATE.DISCONNECTED)
         if (pc.connectionState === 'failed') {
-          toast.error('Connection failed')
+          toast.error('Connection failed (ICE Error)')
         }
       }
     }

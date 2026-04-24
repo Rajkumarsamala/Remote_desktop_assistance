@@ -56,7 +56,7 @@ from shared.constants import (
     MSG_TYPE_SESSION_NOT_FOUND, MSG_TYPE_SESSION_FULL,
     MSG_TYPE_PEER_DISCONNECTED, MSG_TYPE_HOST_REGISTERED,
     MSG_TYPE_CLIENT_REGISTERED, MSG_TYPE_PING, MSG_TYPE_PONG,
-    MSG_TYPE_INPUT_EVENT,
+    MSG_TYPE_INPUT_EVENT, ICESERVERS
 )
 from shared.models import InputEvent, SessionState
 
@@ -628,13 +628,14 @@ class HostApplication:
         self._remote_description_set = False
 
         # Create peer connection with STUN + TURN servers
-        config = RTCConfiguration(iceServers=[
-            RTCIceServer(urls="stun:stun.l.google.com:19302"),
-            RTCIceServer(urls="stun:stun1.l.google.com:19302"),
-            RTCIceServer(urls="stun:stun2.l.google.com:19302"),
-            # Free TURN relay for symmetric NATs
-            RTCIceServer(urls="turn:openrelay.projectenica.org:443", username="openrelay", credential="openrelay"),
-        ])
+        ice_servers = []
+        for server in ICESERVERS:
+            ice_servers.append(RTCIceServer(**server))
+
+        config = RTCConfiguration(
+            iceServers=ice_servers,
+            iceTransportPolicy="all"
+        )
         self.peer_connection = RTCPeerConnection(configuration=config)
 
         # Create data channel for input events

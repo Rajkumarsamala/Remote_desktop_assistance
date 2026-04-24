@@ -1,0 +1,9 @@
+version: "3"
+services:
+  coturn:
+    image: coturn/coturn
+    restart: always
+    network_mode: "host"
+    volumes:
+      - ./turnserver.conf:/etc/coturn/turnserver.conf
+    # The default command will automatically pick up /etc/coturn/turnserver.conf

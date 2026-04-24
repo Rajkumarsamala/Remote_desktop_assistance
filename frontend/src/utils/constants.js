@@ -1,9 +1,11 @@
+const TURN_URL = import.meta.env.VITE_TURN_URL || "turn:openrelay.metered.ca:443";
+const TURN_USERNAME = import.meta.env.VITE_TURN_USERNAME || "openrelayproject";
+const TURN_PASSWORD = import.meta.env.VITE_TURN_PASSWORD || "openrelayproject";
+
 export const ICE_SERVERS = [
   { urls: "stun:stun.l.google.com:19302" },
   { urls: "stun:stun1.l.google.com:19302" },
-  { urls: "turn:openrelay.metered.ca:80", username: "openrelayproject", credential: "openrelayproject" },
-  { urls: "turn:openrelay.metered.ca:443", username: "openrelayproject", credential: "openrelayproject" },
-  { urls: "turn:openrelay.metered.ca:443?transport=tcp", username: "openrelayproject", credential: "openrelayproject" }
+  { urls: TURN_URL, username: TURN_USERNAME, credential: TURN_PASSWORD }
 ]
 
 // Signaling Server URL - use wss:// for secure WebSocket over public internet
