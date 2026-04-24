@@ -30,55 +30,36 @@ export function mouseEventToInput(event, screenRef) {
 
   const rect = video.getBoundingClientRect()
   
-  // Calculate displayed video dimensions and offset due to object-contain
-  const videoRatio = video.videoWidth / (video.videoHeight || 1);
-  const containerRatio = rect.width / (rect.height || 1);
-
-  let displayWidth, displayHeight, offsetX = 0, offsetY = 0;
-
-  if (containerRatio > videoRatio) {
-    // Window is wider than video (pillarbox) - black bars left/right
-    displayHeight = rect.height;
-    displayWidth = displayHeight * videoRatio;
-    offsetX = (rect.width - displayWidth) / 2;
-  } else {
-    // Window is taller than video (letterbox) - black bars top/bottom
-    displayWidth = rect.width;
-    displayHeight = displayWidth / videoRatio;
-    offsetY = (rect.height - displayHeight) / 2;
-  }
-
-  const clientX = event.clientX - rect.left - offsetX;
-  const clientY = event.clientY - rect.top - offsetY;
-
-  // Clamp interactions to the strict video box boundary
-  const clampedX = Math.max(0, Math.min(clientX, displayWidth));
-  const clampedY = Math.max(0, Math.min(clientY, displayHeight));
-
-  const scaleX = video.videoWidth / displayWidth;
-  const scaleY = video.videoHeight / displayHeight;
-
-  const x = Math.round(clampedX * scaleX)
-  const y = Math.round(clampedY * scaleY)
+  // Exact coordinate map without letterbox modifications as explicitly requested
+  const x = Math.round((event.clientX - rect.left) * (video.videoWidth / rect.width));
+  const y = Math.round((event.clientY - rect.top) * (video.videoHeight / rect.height));
 
   let eventType = 'mouse_move'
   let button = null
 
   switch (event.type) {
     case 'mousedown':
-      eventType = 'mouse_click'
+      eventType = 'mouse_down'
       button = getButton(event.button)
       break
     case 'mouseup':
-      eventType = 'mouse_release'
+      eventType = 'mouse_up'
       button = getButton(event.button)
       break
     case 'wheel':
       eventType = 'scroll'
       break
+    case 'click':
+    case 'contextmenu':
+      // The browser natively handles the click sequence; we already sent mousedown/mouseup
+      // But if needed, just pass as move for update tracking
+      eventType = 'mouse_move'
+      break
     default:
       break
   }
+  
+  console.log("Sending:", x, y, eventType)
 
   return {
     event_type: eventType,

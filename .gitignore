@@ -24,3 +24,8 @@ Thumbs.db
 # Project generated
 *.log
 *.zip
+
+# PyInstaller
+build/
+dist/
+*.spec

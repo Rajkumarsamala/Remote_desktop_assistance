@@ -267,11 +267,7 @@ function RemotePage({ webrtc, onDisconnect }) {
 
           {/* Video element */}
           <div
-            className={`w-full h-full relative bg-black/50 backdrop-blur-sm ${controlEnabled && isConnected ? 'cursor-none' : 'cursor-default'}`}
-            onMouseMove={controlEnabled && isConnected ? handleMouseMove : undefined}
-            onMouseDown={controlEnabled && isConnected ? handleMouseDown : undefined}
-            onMouseUp={controlEnabled && isConnected ? handleMouseUp : undefined}
-            onWheel={controlEnabled && isConnected ? handleWheel : undefined}
+            className={`w-full h-full relative bg-black/50 backdrop-blur-sm ${controlEnabled && isConnected ? 'cursor-none pointer-events-none' : 'cursor-default'}`}
           >
             <video
               id="remoteVideo"
@@ -279,8 +275,16 @@ function RemotePage({ webrtc, onDisconnect }) {
               autoPlay
               playsInline
               muted={!hasInteracted}
-              className="w-full h-full object-contain drop-shadow-2xl"
+              className={`w-full h-full object-contain drop-shadow-2xl ${controlEnabled ? 'pointer-events-auto' : 'pointer-events-none'}`}
               style={{ display: hasStream ? 'block' : 'none' }}
+              onMouseMove={controlEnabled && isConnected ? handleMouseMove : undefined}
+              onMouseDown={controlEnabled && isConnected ? handleMouseDown : undefined}
+              onMouseUp={controlEnabled && isConnected ? handleMouseUp : undefined}
+              onClick={controlEnabled && isConnected ? handleMouseDown : undefined}
+              onContextMenu={(e) => {
+                 if(controlEnabled && isConnected) e.preventDefault(); 
+              }}
+              onWheel={controlEnabled && isConnected ? handleWheel : undefined}
             />
           </div>
 

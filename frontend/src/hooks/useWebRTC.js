@@ -372,7 +372,6 @@ export function useWebRTC() {
    */
   const handleWheel = useCallback((e) => {
     if (connectionState !== CONNECTION_STATE.CONNECTED) return
-    e.preventDefault()
     const event = mouseEventToInput(e, screenRef)
     if (event) sendInputEvent(event)
   }, [connectionState, sendInputEvent])
@@ -382,8 +381,6 @@ export function useWebRTC() {
    */
   const handleKeyDown = useCallback((e) => {
     if (connectionState !== CONNECTION_STATE.CONNECTED) return
-    if (e.target.tagName === 'INPUT') return
-    e.preventDefault()
     const event = keyboardEventToInput(e)
     sendInputEvent(event)
   }, [connectionState, sendInputEvent])
@@ -393,8 +390,6 @@ export function useWebRTC() {
    */
   const handleKeyUp = useCallback((e) => {
     if (connectionState !== CONNECTION_STATE.CONNECTED) return
-    if (e.target.tagName === 'INPUT') return
-    e.preventDefault()
     const event = keyboardEventToInput(e)
     sendInputEvent(event)
   }, [connectionState, sendInputEvent])

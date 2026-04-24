@@ -22,6 +22,8 @@ import threading
 from typing import Optional, Dict, Any
 from fractions import Fraction
 import argparse
+import tkinter as tk
+from tkinter import ttk
 from aiortc import RTCPeerConnection, RTCSessionDescription, RTCIceCandidate, RTCConfiguration, RTCIceServer
 
 # Add parent directory to path
@@ -185,12 +187,13 @@ class InputHandler:
             event: InputEvent object containing event details
         """
         try:
+            print(f"Received: {event.event_type} at {event.x}, {event.y}")
             if event.event_type == 'mouse_move':
                 # Move mouse to absolute position
                 pyautogui.moveTo(event.x, event.y, duration=0.0)
                 self.last_x, self.last_y = event.x, event.y
 
-            elif event.event_type == 'mouse_click':
+            elif event.event_type == 'mouse_down':
                 # Handle mouse click (down) at position to allow dragging
                 pyautogui.moveTo(event.x, event.y, duration=0.0)
                 if event.button == 'left':
@@ -200,7 +203,7 @@ class InputHandler:
                 elif event.button == 'middle':
                     pyautogui.mouseDown(button='middle')
 
-            elif event.event_type == 'mouse_release':
+            elif event.event_type == 'mouse_up':
                 # Handle mouse release to end drag or click
                 if event.button == 'left':
                     pyautogui.mouseUp(button='left')
@@ -794,24 +797,110 @@ class HostApplication:
         print("[*] Host stopped")
 
 
-async def main():
-    """Main entry point."""
-    parser = argparse.ArgumentParser(description="RemoteView Host - Screen Sharing")
-    parser.add_argument("--host", default=SIGNALING_HOST, help="Signaling server host")
-    parser.add_argument("--port", type=int, default=SIGNALING_PORT, help="Signaling server port")
-    parser.add_argument("--quality", type=int, default=SCREEN_QUALITY, help="JPEG quality (0-100)")
-    parser.add_argument("--fps", type=int, default=SCREEN_FPS, help="Frames per second")
+class HostUI:
+    def __init__(self, host_app_factory):
+        self.host_app_factory = host_app_factory
+        self.host_app = None
+        self.loop = None
+        self.runner_thread = None
+        self.is_running = False
 
-    args = parser.parse_args()
+        self.root = tk.Tk()
+        self.root.title("RemoteView Host")
+        self.root.geometry("350x250")
+        self.root.resizable(False, False)
+        
+        # Optional: Set window to always act as priority or un-intrusive
+        # self.root.attributes("-topmost", True)
 
-    host_app = HostApplication(
-        signaling_host=args.host,
-        signaling_port=args.port,
-        quality=args.quality,
-        fps=args.fps,
-    )
+        style = ttk.Style()
+        style.configure("TLabel", font=("Arial", 11))
+        style.configure("Header.TLabel", font=("Arial", 14, "bold"))
 
-    await host_app.run()
+        self.header_label = ttk.Label(self.root, text="Remote System Control", style="Header.TLabel")
+        self.header_label.pack(pady=10)
+
+        self.status_label = ttk.Label(self.root, text="Status: Stopped")
+        self.status_label.pack(pady=5)
+
+        self.code_frame = ttk.Frame(self.root)
+        self.code_frame.pack(pady=10)
+        
+        ttk.Label(self.code_frame, text="Session Code:").pack(side=tk.LEFT, padx=5)
+        self.code_var = tk.StringVar()
+        self.code_entry = ttk.Entry(self.code_frame, textvariable=self.code_var, state='readonly', width=12)
+        self.code_entry.pack(side=tk.LEFT, padx=5)
+
+        self.copy_btn = ttk.Button(self.code_frame, text="Copy", command=self.copy_code)
+        self.copy_btn.pack(side=tk.LEFT, padx=5)
+
+        self.start_btn = ttk.Button(self.root, text="Start Host", command=self.toggle_connection)
+        self.start_btn.pack(pady=20)
+
+        self.root.protocol("WM_DELETE_WINDOW", self.on_closing)
+        
+        # Auto-start connection engine
+        self.root.after(500, self.start_host)
+        self.check_status()
+
+    def copy_code(self):
+        self.root.clipboard_clear()
+        self.root.clipboard_append(self.code_var.get())
+        
+    def start_host(self):
+        if self.is_running: return
+        self.is_running = True
+        self.start_btn.config(text="Stop Host")
+        
+        def run_asyncio():
+            self.host_app = self.host_app_factory()
+            self.loop = asyncio.new_event_loop()
+            asyncio.set_event_loop(self.loop)
+            try:
+                self.loop.run_until_complete(self.host_app.run())
+            except Exception as e:
+                print(f"Asyncio loop error: {e}")
+            finally:
+                self.loop.close()
+                
+        self.runner_thread = threading.Thread(target=run_asyncio, daemon=True)
+        self.runner_thread.start()
+        
+    def toggle_connection(self):
+        if self.is_running:
+            self.stop_host()
+        else:
+            self.start_host()
+
+    def stop_host(self):
+        if not self.is_running: return
+        if self.host_app:
+            self.host_app.running = False
+            # Safely shut down asyncio loop components without hanging
+        self.is_running = False
+        self.start_btn.config(text="Start Host")
+        self.status_label.config(text="Status: Stopped", foreground="black")
+        self.code_var.set("")
+
+    def check_status(self):
+        if self.host_app:
+            if self.host_app.client_connected:
+                self.status_label.config(text="Status: Connected (In Session)", foreground="green")
+            elif self.host_app.session_code:
+                self.status_label.config(text="Status: Waiting for viewer...", foreground="blue")
+                self.code_var.set(self.host_app.session_code)
+            else:
+                self.status_label.config(text="Status: Connecting to Server...", foreground="black")
+                self.code_var.set("")
+        self.root.after(500, self.check_status)
+
+    def on_closing(self):
+        self.stop_host()
+        self.root.destroy()
+        os._exit(0)
+        
+    def run(self):
+        self.root.mainloop()
 
 
 if __name__ == "__main__":
@@ -820,39 +909,13 @@ if __name__ == "__main__":
         print("[!] Please install aiortc: pip install aiortc av")
         sys.exit(1)
 
-    try:
-        import websockets
-    except ImportError:
-        print("[!] Installing websockets...")
-        os.system("pip install websockets")
-        import websockets
+    def create_host_app():
+        return HostApplication(
+            signaling_host=SIGNALING_HOST,
+            signaling_port=SIGNALING_PORT,
+            quality=SCREEN_QUALITY,
+            fps=SCREEN_FPS,
+        )
 
-    try:
-        import aiohttp
-    except ImportError:
-        print("[!] Installing aiohttp...")
-        os.system("pip install aiohttp")
-        import aiohttp
-
-    try:
-        import mss
-    except ImportError:
-        print("[!] Installing mss...")
-        os.system("pip install mss")
-        import mss
-
-    try:
-        import pyautogui
-    except ImportError:
-        print("[!] Installing pyautogui...")
-        os.system("pip install pyautogui")
-        import pyautogui
-
-    try:
-        import pyaudiowpatch
-    except ImportError:
-        print("[!] Installing pyaudiowpatch...")
-        os.system("pip install pyaudiowpatch")
-        import pyaudiowpatch
-
-    asyncio.run(main())
+    ui = HostUI(create_host_app)
+    ui.run()

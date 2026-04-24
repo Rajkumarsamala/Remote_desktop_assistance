@@ -90,18 +90,14 @@ Then use the ngrok URL for host/client connections.
 
 ### Step 2: Start the Host (Screen Sharer)
 
-On the computer you want to share:
+On the computer you want to share, simply run the standalone executable:
 
-```bash
-python host/host.py
-```
+Double-click `RemoteViewHost.exe` (located in the `dist` folder if built locally).
 
+A small Desktop UI window will appear. Click "Start Host" to connect to the server.
 You'll see a session code like `1234-5678`. Share this with the viewer.
 
-Options:
-```bash
-python host/host.py --host localhost --port 8765 --quality 75 --fps 20
-```
+*Note: If you are running from source, you can still execute `python host/host.py`.*
 
 ### Step 3: Start the Client (Viewer)
 
