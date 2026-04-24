@@ -1,7 +1,6 @@
 import { useState } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
 import HomePage from './components/HomePage'
-import HostPage from './components/HostPage'
 import ClientPage from './components/ClientPage'
 import RemotePage from './components/RemotePage'
 import { useWebRTC } from './hooks/useWebRTC'
@@ -26,15 +25,6 @@ function App() {
     setCurrentPage(page)
   }
 
-  const handleStartHost = async () => {
-    try {
-      await webrtc.startHost()
-      navigateTo('host')
-    } catch (e) {
-      // Error handled in hook
-    }
-  }
-
   const handleJoinSession = async (code) => {
     try {
       await webrtc.joinSession(code)
@@ -47,10 +37,6 @@ function App() {
   const handleDisconnect = () => {
     webrtc.disconnect()
     navigateTo('home')
-  }
-
-  const handleClientConnect = () => {
-    navigateTo('remote')
   }
 
   return (
@@ -67,22 +53,8 @@ function App() {
         >
           {currentPage === 'home' && (
             <HomePage
-              onStartHost={handleStartHost}
               onJoinSession={() => navigateTo('client')}
               isConnecting={webrtc.connectionState === 'connecting'}
-            />
-          )}
-
-          {currentPage === 'host' && (
-            <HostPage
-              sessionCode={webrtc.sessionCode}
-              connectionState={webrtc.connectionState}
-              onDisconnect={() => {
-                webrtc.disconnect()
-                navigateTo('home')
-              }}
-              onClientConnected={handleClientConnect}
-              webrtc={webrtc}
             />
           )}
 

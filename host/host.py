@@ -274,54 +274,81 @@ class SystemAudioTrack(MediaStreamTrack):
 
     def __init__(self):
         super().__init__()
-        import pyaudiowpatch as pyaudio
         import queue
+        from fractions import Fraction
         self.audio_queue = queue.Queue(maxsize=100)
-        self.p_audio = pyaudio.PyAudio()
+        self.running = False
+        self.thread = None
+        self.format = None
+        self.channels = None
+        self.rate = None
         
         try:
-            wasapi_info = self.p_audio.get_host_api_info_by_type(pyaudio.paWASAPI)
-            default_speakers = self.p_audio.get_device_info_by_index(wasapi_info["defaultOutputDevice"])
+            import pyaudiowpatch as pyaudio
+            self.p_audio = pyaudio.PyAudio()
+            self.pyaudio_available = True
             
-            loopback_device = None
-            if not default_speakers["isLoopbackDevice"]:
-                for loopback in self.p_audio.get_loopback_device_info_generator():
-                    # Find loopback for default speaker
-                    if default_speakers["name"] in loopback["name"]:
-                        loopback_device = loopback
-                        break
-                if not loopback_device:
-                    loopback_device = self.p_audio.get_default_wasapi_loopback()
-            else:
-                loopback_device = default_speakers
-        except Exception as e:
-            safe_log(f"[*] Could not find WASAPI loopback, falling back to default input: {e}")
-            loopback_device = self.p_audio.get_default_input_device_info()
+            try:
+                wasapi_info = self.p_audio.get_host_api_info_by_type(pyaudio.paWASAPI)
+                default_speakers = self.p_audio.get_device_info_by_index(wasapi_info["defaultOutputDevice"])
+                
+                loopback_device = None
+                if not default_speakers["isLoopbackDevice"]:
+                    for loopback in self.p_audio.get_loopback_device_info_generator():
+                        if default_speakers["name"] in loopback["name"]:
+                            loopback_device = loopback
+                            break
+                    if not loopback_device:
+                        loopback_device = self.p_audio.get_default_wasapi_loopback()
+                else:
+                    loopback_device = default_speakers
+            except Exception as e:
+                safe_log(f"[*] Could not find WASAPI loopback, falling back to default input: {e}")
+                loopback_device = self.p_audio.get_default_input_device_info()
+                
+            self.sample_rate = int(loopback_device["defaultSampleRate"])
+            self.channels = loopback_device["maxInputChannels"]
             
-        self.sample_rate = int(loopback_device["defaultSampleRate"])
-        self.channels = loopback_device["maxInputChannels"]
-        
-        def callback(in_data, frame_count, time_info, status):
-            if not self.audio_queue.full():
-                self.audio_queue.put(in_data)
-            return (None, pyaudio.paContinue)
-            
-        self.stream = self.p_audio.open(
-            format=pyaudio.paInt16,
-            channels=self.channels,
-            rate=self.sample_rate,
-            frames_per_buffer=int(self.sample_rate * 0.02), # 20ms chunks
-            input=True,
-            input_device_index=loopback_device["index"],
-            stream_callback=callback
-        )
-        self.time_base = Fraction(1, self.sample_rate)
-        self.pts = 0
+            def callback(in_data, frame_count, time_info, status):
+                if not self.audio_queue.full():
+                    self.audio_queue.put(in_data)
+                return (None, pyaudio.paContinue)
+                
+            self.stream = self.p_audio.open(
+                format=pyaudio.paInt16,
+                channels=self.channels,
+                rate=self.sample_rate,
+                frames_per_buffer=int(self.sample_rate * 0.02), # 20ms chunks
+                input=True,
+                input_device_index=loopback_device["index"],
+                stream_callback=callback
+            )
+            self.time_base = Fraction(1, self.sample_rate)
+            self.pts = 0
+
+        except ImportError:
+            safe_log("[!] pyaudiowpatch not available. Audio streaming disabled (Mac/Linux).")
+            self.pyaudio_available = False
 
     async def recv(self):
         """Receive next audio frame."""
         import av
+        import asyncio
+        import numpy as np
         
+        if not self.pyaudio_available:
+            import time
+            from fractions import Fraction
+            frame = av.AudioFrame(format='s16', layout='stereo', samples=480)
+            frame.sample_rate = 48000
+            for p in frame.planes:
+                p.update(b'\x00' * 480 * 2 * 2)
+            pts, time_base = int(time.time() * 48000), Fraction(1, 48000)
+            frame.pts = pts
+            frame.time_base = time_base
+            await asyncio.sleep(0.01)
+            return frame
+
         # Pull from queue without blocking asyncio loop
         try:
             in_data = await asyncio.get_event_loop().run_in_executor(None, self.audio_queue.get)

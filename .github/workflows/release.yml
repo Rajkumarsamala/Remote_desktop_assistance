@@ -1,0 +1,54 @@
+name: Build Desktop Apps
+
+on:
+  push:
+    branches: [ main ]
+  workflow_dispatch:
+
+jobs:
+  build:
+    strategy:
+      matrix:
+        include:
+          - os: windows-latest
+            artifact_name: RemoteViewHost.exe
+            asset_name: RemoteViewHost-Windows.exe
+          - os: macos-latest
+            artifact_name: RemoteViewHost
+            asset_name: RemoteViewHost-Mac
+    runs-on: ${{ matrix.os }}
+    
+    steps:
+      - uses: actions/checkout@v3
+      
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.11'
+          
+      - name: Install dependencies
+        shell: bash
+        run: |
+          python -m pip install --upgrade pip
+          pip install pyinstaller -r requirements.txt pynput aiortc av mss pyautogui websockets aiohttp
+          if [ "$RUNNER_OS" == "Windows" ]; then
+            pip install pyaudiowpatch
+          fi
+          
+      - name: Build with PyInstaller (Windows)
+        if: matrix.os == 'windows-latest'
+        run: pyinstaller --noconfirm --onefile --noconsole --name "RemoteViewHost" --hidden-import "aiortc" --hidden-import "av" --hidden-import "mss" --hidden-import "pyautogui" --hidden-import "pynput" --hidden-import "pynput.keyboard._win32" --hidden-import "pynput.mouse._win32" --hidden-import "pyaudiowpatch" --hidden-import "websockets" --hidden-import "aiohttp" host\host.py
+
+      - name: Build with PyInstaller (Mac)
+        if: matrix.os == 'macos-latest'
+        run: pyinstaller --noconfirm --onefile --noconsole --name "RemoteViewHost" --hidden-import "aiortc" --hidden-import "av" --hidden-import "mss" --hidden-import "pyautogui" --hidden-import "pynput" --hidden-import "pynput.keyboard._darwin" --hidden-import "pynput.mouse._darwin" --hidden-import "websockets" --hidden-import "aiohttp" host/host.py
+
+      - name: Create or Update Latest Release
+        uses: softprops/action-gh-release@v1
+        with:
+          tag_name: latest
+          name: Latest Release
+          files: |
+            dist/${{ matrix.artifact_name }}*
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
