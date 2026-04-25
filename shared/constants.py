@@ -29,11 +29,12 @@ ICESERVERS = [
     {"urls": "stun:stun.l.google.com:19302"},
     {
         "urls": [
-            "turn:turn.yourdomain.com:3478",
-            "turns:turn.yourdomain.com:5349"
+            "turn:global.relay.metered.ca:80",
+            "turn:global.relay.metered.ca:443",
+            "turns:global.relay.metered.ca:443"
         ],
-        "username": "username",
-        "credential": "password"
+        "username": "<YOUR_USERNAME>",
+        "credential": "<YOUR_PASSWORD>"
     }
 ]
 
