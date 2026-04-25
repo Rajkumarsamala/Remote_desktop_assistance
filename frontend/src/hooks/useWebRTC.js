@@ -163,7 +163,7 @@ export function useWebRTC() {
     };
 
     pc.onconnectionstatechange = () => {
-      console.log("Connection state:", pc.connectionState)
+      console.log(pc.connectionState)
       console.log('[PC] State:', pc.connectionState)
       
       if (pc.connectionState === 'connecting') {
@@ -171,8 +171,19 @@ export function useWebRTC() {
         if (iceTimeoutRef.current) clearTimeout(iceTimeoutRef.current);
         iceTimeoutRef.current = setTimeout(() => {
           if (pcRef.current && pcRef.current.connectionState !== 'connected') {
-            toast.error('Connection stalled - ICE route failed. Please verify TURN relay restrictions.');
-            disconnect();
+            toast.error('Connection stalled - Restarting ICE...');
+            if (isHostRef.current) {
+                pcRef.current.createOffer({ iceRestart: true })
+                  .then(offer => {
+                    return pcRef.current.setLocalDescription(offer).then(() => offer);
+                  })
+                  .then(offer => {
+                    sendWsMessage(wsRef.current, MSG_TYPES.OFFER, { sdp: offer.sdp });
+                  })
+                  .catch(e => console.error('[ICE] Restart failed', e));
+            } else {
+                toast('Waiting for host to restart ICE...', { icon: '⏳' });
+            }
           }
         }, 15000);
       } else if (pc.connectionState === 'connected') {
@@ -188,6 +199,7 @@ export function useWebRTC() {
     }
 
     pc.oniceconnectionstatechange = () => {
+      console.log(pc.iceConnectionState)
       console.log("ICE state:", pc.iceConnectionState)
     }
 

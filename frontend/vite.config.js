@@ -8,15 +8,15 @@ export default defineConfig({
     host: true,
     proxy: {
       '/ws': {
-        target: 'ws://localhost:8765',
+        target: 'wss://remote-view-signaling.onrender.com',
         ws: true,
       },
       '/create-session': {
-        target: 'http://localhost:8765',
+        target: 'https://remote-view-signaling.onrender.com',
         changeOrigin: true,
       },
       '/health': {
-        target: 'http://localhost:8765',
+        target: 'https://remote-view-signaling.onrender.com',
         changeOrigin: true,
       },
     },

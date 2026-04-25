@@ -27,8 +27,14 @@ TURN_PASSWORD = os.getenv("TURN_PASSWORD", "openrelayproject")
 
 ICESERVERS = [
     {"urls": "stun:stun.l.google.com:19302"},
-    {"urls": "stun:stun1.l.google.com:19302"},
-    {"urls": TURN_URL, "username": TURN_USERNAME, "credential": TURN_PASSWORD},
+    {
+        "urls": [
+            "turn:turn.yourdomain.com:3478",
+            "turns:turn.yourdomain.com:5349"
+        ],
+        "username": "username",
+        "credential": "password"
+    }
 ]
 
 # WebRTC configuration

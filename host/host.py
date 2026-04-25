@@ -653,8 +653,9 @@ class HostApplication:
         self.peer_connection.addTrack(self.video_track)
 
         # Create audio track
-        self.audio_track = SystemAudioTrack()
-        self.peer_connection.addTrack(self.audio_track)
+        if getattr(self, 'audio_enabled', True):
+            self.audio_track = SystemAudioTrack()
+            self.peer_connection.addTrack(self.audio_track)
 
         # Set up ICE candidates handler
         @self.peer_connection.on("icecandidate")
@@ -674,6 +675,7 @@ class HostApplication:
         @self.peer_connection.on("connectionstatechange")
         def on_connection_state_change():
             state = self.peer_connection.connection_state
+            print(state)
             safe_log(f"[*] Connection state: {state}")
 
             if state == "connected":
@@ -691,6 +693,8 @@ class HostApplication:
         Args:
             data: JSON string with input event details
         """
+        if not getattr(self, 'control_enabled', True):
+            return
         try:
             safe_log(f"[DC] Received input event: {data}")
             event = InputEvent.from_json(data)
@@ -878,14 +882,31 @@ class HostUI:
         self.copy_btn = ttk.Button(self.code_frame, text="Copy", command=self.copy_code)
         self.copy_btn.pack(side=tk.LEFT, padx=5)
 
+        self.options_frame = ttk.Frame(self.root)
+        self.options_frame.pack(pady=5)
+
+        self.control_var = tk.BooleanVar(value=True)
+        self.audio_var = tk.BooleanVar(value=True)
+
+        self.control_cb = ttk.Checkbutton(self.options_frame, text="Enable Remote Control", variable=self.control_var, command=self.update_settings)
+        self.control_cb.grid(row=0, column=0, padx=10)
+        
+        self.audio_cb = ttk.Checkbutton(self.options_frame, text="Enable Audio", variable=self.audio_var, command=self.update_settings)
+        self.audio_cb.grid(row=0, column=1, padx=10)
+
         self.start_btn = ttk.Button(self.root, text="Start Host", command=self.toggle_connection)
-        self.start_btn.pack(pady=20)
+        self.start_btn.pack(pady=15)
 
         self.root.protocol("WM_DELETE_WINDOW", self.on_closing)
         
         # Auto-start connection engine
         self.root.after(500, self.start_host)
         self.check_status()
+
+    def update_settings(self):
+        if self.host_app:
+            self.host_app.control_enabled = self.control_var.get()
+            self.host_app.audio_enabled = self.audio_var.get()
 
     def copy_code(self):
         self.root.clipboard_clear()
@@ -954,12 +975,15 @@ if __name__ == "__main__":
         sys.exit(1)
 
     def create_host_app():
-        return HostApplication(
+        app = HostApplication(
             signaling_host=SIGNALING_HOST,
             signaling_port=SIGNALING_PORT,
             quality=SCREEN_QUALITY,
             fps=SCREEN_FPS,
         )
+        app.control_enabled = ui.control_var.get() if 'ui' in globals() else True
+        app.audio_enabled = ui.audio_var.get() if 'ui' in globals() else True
+        return app
 
     ui = HostUI(create_host_app)
     ui.run()

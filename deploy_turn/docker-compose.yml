@@ -1,9 +1,16 @@
-version: "3"
+version: '3'
 services:
   coturn:
     image: coturn/coturn
-    restart: always
-    network_mode: "host"
-    volumes:
-      - ./turnserver.conf:/etc/coturn/turnserver.conf
-    # The default command will automatically pick up /etc/coturn/turnserver.conf
+    network_mode: host
+    command: >
+      turnserver
+      -n
+      --log-file=stdout
+      --lt-cred-mech
+      --realm=remoteview
+      --user=username:password
+      --fingerprint
+      --external-ip=<YOUR_PUBLIC_IP>
+      --min-port=49152
+      --max-port=65535

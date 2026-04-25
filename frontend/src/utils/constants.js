@@ -4,8 +4,14 @@ const TURN_PASSWORD = import.meta.env.VITE_TURN_PASSWORD || "openrelayproject";
 
 export const ICE_SERVERS = [
   { urls: "stun:stun.l.google.com:19302" },
-  { urls: "stun:stun1.l.google.com:19302" },
-  { urls: TURN_URL, username: TURN_USERNAME, credential: TURN_PASSWORD }
+  {
+    urls: [
+      "turn:turn.yourdomain.com:3478",
+      "turns:turn.yourdomain.com:5349"
+    ],
+    username: "username",
+    credential: "password"
+  }
 ]
 
 // Signaling Server URL - use wss:// for secure WebSocket over public internet

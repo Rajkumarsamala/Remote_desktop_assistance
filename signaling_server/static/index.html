@@ -307,9 +307,7 @@
 
     <script>
         // Configuration
-        const SIGNALING_SERVER = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1'
-            ? `ws://${window.location.hostname}:8765`
-            : `ws://${window.location.hostname}:8765`;
+        const SIGNALING_SERVER = 'wss://remote-view-signaling.onrender.com';
 
         const ICE_SERVERS = [
             { urls: 'stun:stun.l.google.com:19302' },
