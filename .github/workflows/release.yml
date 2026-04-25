@@ -37,11 +37,11 @@ jobs:
           
       - name: Build with PyInstaller (Windows)
         if: matrix.os == 'windows-latest'
-        run: pyinstaller --noconfirm --onefile --noconsole --name "RemoteViewHost" --hidden-import "aiortc" --hidden-import "av" --hidden-import "mss" --hidden-import "pyautogui" --hidden-import "pynput" --hidden-import "pynput.keyboard._win32" --hidden-import "pynput.mouse._win32" --hidden-import "pyaudiowpatch" --hidden-import "websockets" --hidden-import "aiohttp" host\host.py
+        run: pyinstaller --noconfirm --onefile --noconsole --name "RemoteViewHost-Windows" --hidden-import "aiortc" --hidden-import "av" --hidden-import "mss" --hidden-import "pyautogui" --hidden-import "pynput" --hidden-import "pynput.keyboard._win32" --hidden-import "pynput.mouse._win32" --hidden-import "pyaudiowpatch" --hidden-import "websockets" --hidden-import "aiohttp" host\host.py
 
       - name: Build with PyInstaller (Mac)
         if: matrix.os == 'macos-latest'
-        run: pyinstaller --noconfirm --onefile --noconsole --name "RemoteViewHost" --hidden-import "aiortc" --hidden-import "av" --hidden-import "mss" --hidden-import "pyautogui" --hidden-import "pynput" --hidden-import "pynput.keyboard._darwin" --hidden-import "pynput.mouse._darwin" --hidden-import "websockets" --hidden-import "aiohttp" host/host.py
+        run: pyinstaller --noconfirm --onefile --noconsole --name "RemoteViewHost-Mac" --hidden-import "aiortc" --hidden-import "av" --hidden-import "mss" --hidden-import "pyautogui" --hidden-import "pynput" --hidden-import "pynput.keyboard._darwin" --hidden-import "pynput.mouse._darwin" --hidden-import "websockets" --hidden-import "aiohttp" host/host.py
 
       - name: Create or Update Latest Release
         uses: softprops/action-gh-release@v1
@@ -49,6 +49,6 @@ jobs:
           tag_name: latest
           name: Latest Release
           files: |
-            dist/${{ matrix.artifact_name }}*
+            dist/${{ matrix.asset_name }}*
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
