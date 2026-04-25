@@ -6,7 +6,7 @@ import { ICE_SERVERS, MSG_TYPES } from './constants'
 export function createPeerConnection() {
   return new RTCPeerConnection({
     iceServers: ICE_SERVERS,
-    iceTransportPolicy: 'all',
+    iceTransportPolicy: 'relay',
   })
 }
 

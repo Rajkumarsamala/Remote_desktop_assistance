@@ -3,14 +3,6 @@ services:
   coturn:
     image: coturn/coturn
     network_mode: host
-    command: >
-      turnserver
-      -n
-      --log-file=stdout
-      --lt-cred-mech
-      --realm=remoteview
-      --user=username:password
-      --fingerprint
-      --external-ip=<YOUR_PUBLIC_IP>
-      --min-port=49152
-      --max-port=65535
+    volumes:
+      - ./turnserver.conf:/etc/turnserver.conf
+    command: ["turnserver", "-c", "/etc/turnserver.conf"]

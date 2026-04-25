@@ -40,7 +40,7 @@ ICESERVERS = [
 # WebRTC configuration
 WEBRTC_CONFIG = {
     "iceServers": ICESERVERS,
-    "iceTransportPolicy": "all",  # Use 'relay' for TURN-only if needed
+    "iceTransportPolicy": "relay",  # Force relay for TURN testing
 }
 
 # Video/Screen settings
