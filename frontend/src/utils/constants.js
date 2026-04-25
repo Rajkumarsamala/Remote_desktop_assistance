@@ -10,8 +10,8 @@ export const ICE_SERVERS = [
       "turn:global.relay.metered.ca:443",
       "turns:global.relay.metered.ca:443"
     ],
-    username: "<YOUR_USERNAME>",
-    credential: "<YOUR_PASSWORD>"
+    username: "eb1f4e0836efe8c1f1d9dd7f",
+    credential: "QEMdYMC9MVFatAEr"
   }
 ]
 
