@@ -633,8 +633,7 @@ class HostApplication:
             ice_servers.append(RTCIceServer(**server))
 
         config = RTCConfiguration(
-            iceServers=ice_servers,
-            iceTransportPolicy="all"
+            iceServers=ice_servers
         )
         self.peer_connection = RTCPeerConnection(configuration=config)
 
