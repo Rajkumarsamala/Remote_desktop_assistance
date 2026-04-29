@@ -28,20 +28,16 @@ TURN_PASSWORD = os.getenv("TURN_PASSWORD", "openrelayproject")
 ICESERVERS = [
     {"urls": "stun:stun.l.google.com:19302"},
     {
-        "urls": [
-            "turn:global.relay.metered.ca:80",
-            "turn:global.relay.metered.ca:443",
-            "turns:global.relay.metered.ca:443"
-        ],
-        "username": "eb1f4e0836efe8c1f1d9dd7f",
-        "credential": "QEMdYMC9MVFatAEr"
+        "urls": "turn:openrelay.metered.ca:443",
+        "username": "openrelayproject",
+        "credential": "openrelayproject"
     }
 ]
 
 # WebRTC configuration
 WEBRTC_CONFIG = {
     "iceServers": ICESERVERS,
-    "iceTransportPolicy": "relay",  # Force relay for TURN testing
+    "iceTransportPolicy": "all",  # Changed to 'all' to allow direct P2P connections
 }
 
 # Video/Screen settings

@@ -42,21 +42,21 @@ export function useWebRTC() {
       wsRef.current = ws
 
       ws.onopen = () => {
-        console.log('[WS] Connected')
-        toast.success('Connected to signaling server')
-        resolve()
+        console.log('[WS] Socket open, waiting for registration...')
       }
 
       ws.onerror = (error) => {
         console.error('[WS] Error:', error)
         toast.error('Failed to connect to server')
-        reject(error)
+        reject(new Error('Failed to connect to server'))
       }
 
       ws.onclose = (event) => {
         console.log('[WS] Closed:', event.code, event.reason)
+        reject(new Error(event.reason || 'Session not found or invalid'))
+        
         if (connectionState !== CONNECTION_STATE.CONNECTED) {
-          toast.error('Disconnected from server')
+          toast.error(event.reason || 'Disconnected from server')
         }
         setConnectionState(CONNECTION_STATE.DISCONNECTED)
       }
@@ -64,6 +64,11 @@ export function useWebRTC() {
       ws.onmessage = async (event) => {
         try {
           const msg = JSON.parse(event.data)
+          
+          if (msg.type === MSG_TYPES.HOST_REGISTERED || msg.type === MSG_TYPES.CLIENT_REGISTERED) {
+            resolve()
+          }
+
           await handleSignalingMessage(msg)
         } catch (e) {
           console.error('[WS] Parse error:', e)

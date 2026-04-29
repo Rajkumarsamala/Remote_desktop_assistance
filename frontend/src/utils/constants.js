@@ -5,13 +5,9 @@ const TURN_PASSWORD = import.meta.env.VITE_TURN_PASSWORD || "openrelayproject";
 export const ICE_SERVERS = [
   { urls: "stun:stun.l.google.com:19302" },
   {
-    urls: [
-      "turn:global.relay.metered.ca:80",
-      "turn:global.relay.metered.ca:443",
-      "turns:global.relay.metered.ca:443"
-    ],
-    username: "eb1f4e0836efe8c1f1d9dd7f",
-    credential: "QEMdYMC9MVFatAEr"
+    urls: "turn:openrelay.metered.ca:443",
+    username: "openrelayproject",
+    credential: "openrelayproject"
   }
 ]
 
