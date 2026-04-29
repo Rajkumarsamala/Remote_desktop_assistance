@@ -673,8 +673,7 @@ class HostApplication:
         # Set up connection state handler
         @self.peer_connection.on("connectionstatechange")
         def on_connection_state_change():
-            state = self.peer_connection.connection_state
-            print(state)
+            state = self.peer_connection.connectionState
             safe_log(f"[*] Connection state: {state}")
 
             if state == "connected":
