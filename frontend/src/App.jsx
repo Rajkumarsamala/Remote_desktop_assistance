@@ -6,15 +6,15 @@ import RemotePage from './components/RemotePage'
 import { useWebRTC } from './hooks/useWebRTC'
 
 const pageVariants = {
-  initial: { opacity: 0, y: 20 },
-  in: { opacity: 1, y: 0 },
-  out: { opacity: 0, y: -20 },
+  initial: { opacity: 0, scale: 0.95, filter: 'blur(10px)' },
+  in: { opacity: 1, scale: 1, filter: 'blur(0px)' },
+  out: { opacity: 0, scale: 1.05, filter: 'blur(10px)' },
 }
 
 const pageTransition = {
-  type: 'tween',
-  ease: 'anticipate',
-  duration: 0.4,
+  type: 'spring',
+  stiffness: 260,
+  damping: 20,
 }
 
 function App() {

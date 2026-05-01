@@ -107,11 +107,12 @@ function RemotePage({ webrtc, onDisconnect }) {
         }
       }}
     >
-      {/* Top Control Bar */}
+      {/* Top Control Bar (Floating Dock) */}
       <motion.header
-        initial={{ y: -100 }}
-        animate={{ y: 0 }}
-        className="h-16 shrink-0 glass-strong border-b border-white/5 flex items-center justify-between px-4 md:px-6 z-40"
+        initial={{ y: -100, opacity: 0 }}
+        animate={{ y: 0, opacity: 1 }}
+        transition={{ type: 'spring', stiffness: 200, damping: 20 }}
+        className="absolute top-4 left-1/2 -translate-x-1/2 h-16 w-[95%] max-w-6xl glass-strong border border-white/10 rounded-2xl flex items-center justify-between px-6 z-40 shadow-[0_20px_50px_-12px_rgba(0,0,0,0.5)]"
       >
         {/* Left: Info */}
         <div className="flex items-center gap-4 md:gap-6">
@@ -211,55 +212,61 @@ function RemotePage({ webrtc, onDisconnect }) {
 
           {/* End Session */}
           <motion.button
-            whileHover={{ scale: 1.05 }}
+            whileHover={{ scale: 1.05, y: -2 }}
             whileTap={{ scale: 0.95 }}
             onClick={(e) => {
               e.stopPropagation()
               onDisconnect()
             }}
-            className="flex items-center gap-2 px-4 py-2 rounded-lg bg-red-500/20 text-red-400 border border-red-500/30 hover:bg-red-500/30 hover:text-red-300 transition-all shadow-md"
+            className="flex items-center gap-2 px-5 py-2.5 rounded-xl bg-red-500/10 text-red-400 border border-red-500/30 hover:bg-red-500/20 hover:text-red-300 hover:border-red-500/50 transition-all shadow-md group"
           >
-            <X className="w-4 h-4" />
-            <span className="text-sm font-medium hidden sm:inline">End Session</span>
+            <X className="w-4 h-4 group-hover:rotate-90 transition-transform duration-300" />
+            <span className="text-sm font-bold hidden sm:inline tracking-wide">End Session</span>
           </motion.button>
         </div>
       </motion.header>
 
       {/* Main Screen Content Area */}
-      <div className="flex-1 relative w-full h-full bg-gradient-animated p-4 md:p-6 lg:p-8 flex items-center justify-center">
+      <div className="flex-1 relative w-full h-full bg-gradient-animated p-4 md:p-6 lg:p-12 pt-28 md:pt-28 lg:pt-28 flex items-center justify-center">
         
         {/* Connecting Overlay relative to main area */}
         <AnimatePresence>
           {isConnecting && !isConnected && (
             <motion.div
-              initial={{ opacity: 0, scale: 0.95 }}
-              animate={{ opacity: 1, scale: 1 }}
-              exit={{ opacity: 0, scale: 0.95 }}
-              className="absolute z-30 flex flex-col items-center justify-center p-12 rounded-3xl glass-strong shadow-premium border border-white/10 overflow-hidden"
+              initial={{ opacity: 0, scale: 0.8, y: 20 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.9, filter: 'blur(10px)' }}
+              transition={{ type: 'spring', stiffness: 200, damping: 25 }}
+              className="absolute z-30 flex flex-col items-center justify-center p-12 rounded-3xl glass-strong shadow-premium animated-border overflow-hidden animate-float-slow"
             >
               <div className="absolute inset-0 bg-gradient-to-t from-accent-cyan/10 to-transparent pointer-events-none" />
-              <div className="relative w-20 h-20 mb-8 mt-4">
-                <div className="absolute inset-0 rounded-full border-2 border-accent-cyan/30 pulse-ring" />
-                <div className="absolute inset-0 rounded-full border-2 border-accent-purple/30 pulse-ring" style={{ animationDelay: '0.5s' }}/>
-                <div className="absolute inset-0 flex items-center justify-center">
-                  <motion.div animate={{ rotate: 360 }} transition={{ duration: 2, repeat: Infinity, ease: 'linear' }}>
-                    <Loader2 className="w-10 h-10 text-accent-cyan" />
+              <div className="relative w-32 h-32 mb-8 mt-4">
+                <div className="absolute inset-0 rounded-full border border-white/10" />
+                <div className="absolute inset-0 rounded-full border-t-2 border-accent-cyan/80 animate-spin" style={{ animationDuration: '2s' }} />
+                <div className="absolute inset-4 rounded-full border-b-2 border-accent-purple/80 animate-spin" style={{ animationDuration: '1.5s', animationDirection: 'reverse' }} />
+                <div className="absolute inset-0 flex items-center justify-center drop-shadow-[0_0_15px_rgba(0,212,255,0.8)]">
+                  <motion.div animate={{ scale: [1, 1.1, 1] }} transition={{ duration: 2, repeat: Infinity }}>
+                    <Signal className="w-10 h-10 text-white" />
                   </motion.div>
                 </div>
               </div>
-              <h2 className="text-white text-2xl font-bold mb-2 tracking-wide">Establishing Secure Link</h2>
-              <p className="text-white/50 text-base mb-2">Negotiating peer-to-peer connection...</p>
+              <h2 className="text-white text-3xl font-extrabold mb-3 tracking-tight bg-clip-text text-transparent bg-gradient-to-r from-white to-white/60">Establishing Link</h2>
+              <p className="text-white/50 text-lg mb-2">Negotiating peer-to-peer connection...</p>
             </motion.div>
           )}
         </AnimatePresence>
 
         {/* The Frame / Canvas */}
         <motion.div 
-          className="relative w-full h-full max-w-[1920px] max-h-[1080px] rounded-2xl overflow-hidden glass shadow-premium border border-white/10"
-          initial={{ opacity: 0, scale: 0.98 }}
-          animate={{ opacity: 1, scale: 1 }}
-          transition={{ delay: 0.2 }}
+          className="relative w-full h-full max-w-[1920px] max-h-[1080px] rounded-[2rem] overflow-hidden bg-black/40 backdrop-blur-md shadow-[0_30px_60px_-15px_rgba(0,0,0,0.8)] border border-white/10 group"
+          initial={{ opacity: 0, scale: 0.95, filter: 'blur(10px)' }}
+          animate={{ opacity: 1, scale: 1, filter: 'blur(0px)' }}
+          transition={{ delay: 0.3, type: 'spring', stiffness: 100 }}
         >
+          {/* Subtle glow border when connected */}
+          {isConnected && (
+            <div className="absolute inset-0 rounded-[2rem] pointer-events-none border border-accent-cyan/20 group-hover:border-accent-cyan/40 transition-colors duration-500 shadow-[inset_0_0_50px_rgba(0,212,255,0.05)]" />
+          )}
           {/* Shimmer Placeholder */}
           {!hasStream && isConnected && (
             <div className="absolute inset-0 shimmer opacity-20 pointer-events-none" />
