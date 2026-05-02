@@ -301,6 +301,11 @@ class SystemAudioTrack(MediaStreamTrack):
         self.format = None
         self.channels = None
         self.rate = None
+        self.pts = 0
+        
+        import av
+        self.fifo = av.AudioFifo()
+        self.resampler = av.AudioResampler(format='s16p', layout='stereo', rate=48000)
         
         try:
             import pyaudiowpatch as pyaudio
@@ -342,8 +347,6 @@ class SystemAudioTrack(MediaStreamTrack):
                 input_device_index=loopback_device["index"],
                 stream_callback=callback
             )
-            self.time_base = Fraction(1, self.sample_rate)
-            self.pts = 0
 
         except ImportError:
             safe_log("[!] pyaudiowpatch not available. Audio streaming disabled (Mac/Linux).")
@@ -354,47 +357,56 @@ class SystemAudioTrack(MediaStreamTrack):
         import av
         import asyncio
         import numpy as np
+        from fractions import Fraction
         
         if not self.pyaudio_available:
             import time
-            from fractions import Fraction
-            frame = av.AudioFrame(format='s16', layout='stereo', samples=480)
+            frame = av.AudioFrame(format='s16', layout='stereo', samples=960)
             frame.sample_rate = 48000
             for p in frame.planes:
-                p.update(b'\x00' * 480 * 2 * 2)
+                p.update(b'\x00' * 960 * 2 * 2)
             pts, time_base = int(time.time() * 48000), Fraction(1, 48000)
             frame.pts = pts
             frame.time_base = time_base
-            await asyncio.sleep(0.01)
+            await asyncio.sleep(0.02)
             return frame
 
-        # Pull from queue without blocking asyncio loop
-        try:
-            in_data = await asyncio.get_event_loop().run_in_executor(None, self.audio_queue.get)
-        except Exception:
-            await asyncio.sleep(0.02)
-            in_data = b'\x00' * (int(self.sample_rate * 0.02) * self.channels * 2)
+        # Ensure we have exactly 960 samples for Opus encoder
+        while self.fifo.samples < 960:
+            try:
+                in_data = await asyncio.get_event_loop().run_in_executor(None, self.audio_queue.get)
+            except Exception:
+                await asyncio.sleep(0.02)
+                in_data = b'\x00' * (int(self.sample_rate * 0.02) * self.channels * 2)
 
-        audio_array = np.frombuffer(in_data, dtype=np.int16)
-        
-        # Calculate samples per channel
-        samples = len(audio_array) // self.channels
-        if samples == 0:
-            await asyncio.sleep(0.01)
-            audio_array = np.zeros(int(self.sample_rate * 0.02) * self.channels, dtype=np.int16)
+            audio_array = np.frombuffer(in_data, dtype=np.int16)
             samples = len(audio_array) // self.channels
+            if samples == 0:
+                continue
 
-        # Format layout for planar 's16p' expected by av
-        audio_array = audio_array.reshape((samples, self.channels)).T.copy()
-        layout = 'stereo' if self.channels == 2 else 'mono'
-        
-        frame = av.AudioFrame.from_ndarray(audio_array, format='s16p', layout=layout)
-        frame.sample_rate = self.sample_rate
-        frame.pts = self.pts
-        self.pts += samples
-        frame.time_base = self.time_base
+            audio_array = audio_array.reshape((samples, self.channels))
+            
+            # Mix or extract to stereo
+            if self.channels >= 2:
+                audio_array = audio_array[:, :2]
+            else:
+                audio_array = np.column_stack((audio_array, audio_array))
+                
+            audio_array = audio_array.T.copy()
+            
+            frame = av.AudioFrame.from_ndarray(audio_array, format='s16p', layout='stereo')
+            frame.sample_rate = self.sample_rate
+            
+            resampled_frames = self.resampler.resample(frame)
+            for rf in resampled_frames:
+                self.fifo.write(rf)
 
-        return frame
+        out_frame = self.fifo.read(960)
+        out_frame.pts = self.pts
+        self.pts += 960
+        out_frame.time_base = Fraction(1, 48000)
+
+        return out_frame
 
     def stop(self):
         super().stop()

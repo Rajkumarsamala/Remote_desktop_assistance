@@ -29,6 +29,7 @@ export function useWebRTC() {
   const shareModeRef = useRef(null)
   const remoteModeRef = useRef('monitor')
   const lastMouseEventRef = useRef(0)
+  const activeStreamRef = useRef(null)
 
   /**
    * Connect to signaling server
@@ -156,14 +157,24 @@ export function useWebRTC() {
     }
 
     pc.ontrack = (event) => {
-      console.log("Track received:", event);
-      setRemoteStream(event.streams[0]);
+      console.log("Track received:", event.track.kind);
+      
+      if (!activeStreamRef.current) {
+        activeStreamRef.current = new MediaStream();
+      }
+      
+      // Prevent duplicate tracks
+      if (!activeStreamRef.current.getTracks().find(t => t.id === event.track.id)) {
+        activeStreamRef.current.addTrack(event.track);
+      }
+      
+      setRemoteStream(activeStreamRef.current);
 
-      // Fallback for native DOM injection if React state is too slow
+      // Fallback for native DOM injection
       const video = document.getElementById("remoteVideo");
       if (video) {
-        video.srcObject = event.streams[0];
-        console.log("Video stream set via ID");
+        video.srcObject = activeStreamRef.current;
+        console.log("Video stream set via ID with tracks:", activeStreamRef.current.getTracks().map(t => t.kind));
       }
     };
 
@@ -517,6 +528,7 @@ export function useWebRTC() {
     setSessionCode(null)
     inputEnabledRef.current = true
     iceCandidateQueueRef.current = []
+    activeStreamRef.current = null
   }, [])
 
   // Cleanup on unmount
