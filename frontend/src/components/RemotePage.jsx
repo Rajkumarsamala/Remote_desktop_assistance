@@ -10,6 +10,7 @@ function RemotePage({ webrtc, onDisconnect }) {
   const containerRef = useRef(null)
   const [controlEnabled, setControlEnabled] = useState(true)
   const [hasInteracted, setHasInteracted] = useState(false)
+  const [isMuted, setIsMuted] = useState(true)
   const [copied, setCopied] = useState(false)
   const [sessionDuration, setSessionDuration] = useState(0)
 
@@ -23,8 +24,12 @@ function RemotePage({ webrtc, onDisconnect }) {
     handleWheel,
     handleKeyDown,
     handleKeyUp,
+    handleTouchStart,
+    handleTouchMove,
+    handleTouchEnd,
     toggleInput,
     screenRef,
+    stats,
   } = webrtc
 
   const formatCode = (code) => {
@@ -92,6 +97,7 @@ function RemotePage({ webrtc, onDisconnect }) {
   const isConnected = connectionState === CONNECTION_STATE.CONNECTED
   const isConnecting = connectionState === CONNECTION_STATE.CONNECTING
   const hasStream = !!remoteStream
+  const hasAudioTrack = remoteStream && remoteStream.getAudioTracks().length > 0
 
   return (
     <div
@@ -157,6 +163,20 @@ function RemotePage({ webrtc, onDisconnect }) {
                 <span className="font-mono text-sm tracking-widest">{formatTime(sessionDuration)}</span>
               </div>
             )}
+            
+            {isConnected && stats && (
+              <div className="flex items-center gap-4 text-xs text-white/50 ml-4 hidden lg:flex border-l border-white/10 pl-4">
+                <div className="flex items-center gap-1.5" title="Latency (Ping)">
+                  <span className="font-mono">{stats.ping}ms ping</span>
+                </div>
+                <div className="flex items-center gap-1.5" title="Packet Loss">
+                  <span className="font-mono text-red-400">{stats.packetLoss}% loss</span>
+                </div>
+                <div className="flex items-center gap-1.5" title="Bandwidth">
+                  <span className="font-mono">{stats.bytesReceived} MB</span>
+                </div>
+              </div>
+            )}
           </div>
         </div>
 
@@ -165,14 +185,32 @@ function RemotePage({ webrtc, onDisconnect }) {
           {isConnected && (
             <>
               {/* Audio Toggle / Status */}
-              <motion.div
-                className="flex items-center gap-2 px-3 py-2 rounded-lg bg-white/5 border border-white/5 hidden sm:flex"
+              <motion.button
+                whileHover={{ scale: 1.05 }}
+                whileTap={{ scale: 0.95 }}
+                onClick={(e) => {
+                  e.stopPropagation()
+                  if (!hasAudioTrack) {
+                    toast('No audio track available from host.', { icon: '🔇' })
+                    return
+                  }
+                  setIsMuted(!isMuted)
+                  setHasInteracted(true)
+                }}
+                className={`flex items-center gap-2 px-3 py-2 rounded-lg border transition-all ${
+                  !hasAudioTrack 
+                    ? 'bg-white/5 border-white/5 text-white/40 cursor-not-allowed' 
+                    : !isMuted 
+                      ? 'bg-accent-green/20 border-accent-green/30 text-accent-green cursor-pointer shadow-[0_0_10px_rgba(0,255,136,0.2)]' 
+                      : 'bg-white/5 border-white/10 text-red-400 cursor-pointer hover:bg-white/10'
+                } hidden sm:flex`}
+                title={!hasAudioTrack ? "No Audio Available" : !isMuted ? "Mute Audio" : "Unmute Audio"}
               >
-                {hasInteracted ? <Volume2 className="w-4 h-4 text-accent-green" /> : <VolumeX className="w-4 h-4 text-red-400" />}
-                <span className={`text-xs font-medium ${hasInteracted ? "text-accent-green" : "text-red-400"}`}>
-                  {hasInteracted ? 'Audio Live' : 'Click page to unmute'}
+                {!hasAudioTrack ? <VolumeX className="w-4 h-4" /> : !isMuted ? <Volume2 className="w-4 h-4" /> : <VolumeX className="w-4 h-4" />}
+                <span className="text-xs font-medium">
+                  {!hasAudioTrack ? 'No Audio' : !isMuted ? 'Audio Live' : 'Muted'}
                 </span>
-              </motion.div>
+              </motion.button>
 
               {/* Control Toggle */}
               <motion.button
@@ -237,21 +275,31 @@ function RemotePage({ webrtc, onDisconnect }) {
               animate={{ opacity: 1, scale: 1, y: 0 }}
               exit={{ opacity: 0, scale: 0.9, filter: 'blur(10px)' }}
               transition={{ type: 'spring', stiffness: 200, damping: 25 }}
-              className="absolute z-30 flex flex-col items-center justify-center p-12 rounded-3xl glass-strong shadow-premium animated-border overflow-hidden animate-float-slow"
+              className="absolute z-30 flex flex-col items-center justify-center p-16 rounded-[3rem] glass-strong shadow-premium overflow-hidden border border-white/10"
             >
-              <div className="absolute inset-0 bg-gradient-to-t from-accent-cyan/10 to-transparent pointer-events-none" />
-              <div className="relative w-32 h-32 mb-8 mt-4">
-                <div className="absolute inset-0 rounded-full border border-white/10" />
-                <div className="absolute inset-0 rounded-full border-t-2 border-accent-cyan/80 animate-spin" style={{ animationDuration: '2s' }} />
-                <div className="absolute inset-4 rounded-full border-b-2 border-accent-purple/80 animate-spin" style={{ animationDuration: '1.5s', animationDirection: 'reverse' }} />
-                <div className="absolute inset-0 flex items-center justify-center drop-shadow-[0_0_15px_rgba(0,212,255,0.8)]">
-                  <motion.div animate={{ scale: [1, 1.1, 1] }} transition={{ duration: 2, repeat: Infinity }}>
-                    <Signal className="w-10 h-10 text-white" />
+              <div className="absolute inset-0 bg-gradient-to-t from-accent-cyan/10 via-transparent to-accent-purple/10 pointer-events-none" />
+              
+              <div className="relative w-36 h-36 mb-10 mt-4 flex items-center justify-center">
+                {/* Orbital Rings */}
+                <div className="absolute inset-0 rounded-full border border-white/5" />
+                <div className="absolute inset-2 rounded-full border border-white/10 border-t-accent-cyan/80 animate-spin" style={{ animationDuration: '3s' }} />
+                <div className="absolute inset-6 rounded-full border border-white/10 border-b-accent-purple/80 animate-spin" style={{ animationDuration: '2s', animationDirection: 'reverse' }} />
+                <div className="absolute inset-10 rounded-full border border-white/10 border-l-accent-green/80 animate-spin" style={{ animationDuration: '4s' }} />
+                
+                {/* Center Core */}
+                <div className="absolute w-12 h-12 bg-white/10 rounded-full blur-md animate-pulse" />
+                <div className="relative z-10 flex items-center justify-center drop-shadow-[0_0_20px_rgba(0,212,255,0.8)]">
+                  <motion.div animate={{ scale: [1, 1.2, 1], rotate: [0, 180, 360] }} transition={{ duration: 4, ease: "linear", repeat: Infinity }}>
+                    <Loader2 className="w-10 h-10 text-white/80" />
                   </motion.div>
                 </div>
               </div>
+              
               <h2 className="text-white text-3xl font-extrabold mb-3 tracking-tight bg-clip-text text-transparent bg-gradient-to-r from-white to-white/60">Establishing Link</h2>
-              <p className="text-white/50 text-lg mb-2">Negotiating peer-to-peer connection...</p>
+              <div className="flex items-center gap-2 text-white/50 text-lg font-light">
+                <span className="w-2 h-2 rounded-full bg-accent-cyan animate-ping" />
+                Negotiating peer-to-peer connection...
+              </div>
             </motion.div>
           )}
         </AnimatePresence>
@@ -281,13 +329,17 @@ function RemotePage({ webrtc, onDisconnect }) {
               ref={screenRef}
               autoPlay
               playsInline
-              muted={!hasInteracted}
+              muted={isMuted}
               className={`w-full h-full object-contain drop-shadow-2xl ${controlEnabled ? 'pointer-events-auto' : 'pointer-events-none'}`}
-              style={{ display: hasStream ? 'block' : 'none' }}
+              style={{ display: hasStream ? 'block' : 'none', touchAction: 'none' }}
               onMouseMove={controlEnabled && isConnected ? handleMouseMove : undefined}
               onMouseDown={controlEnabled && isConnected ? handleMouseDown : undefined}
               onMouseUp={controlEnabled && isConnected ? handleMouseUp : undefined}
               onClick={controlEnabled && isConnected ? handleMouseDown : undefined}
+              onTouchStart={controlEnabled && isConnected ? handleTouchStart : undefined}
+              onTouchMove={controlEnabled && isConnected ? handleTouchMove : undefined}
+              onTouchEnd={controlEnabled && isConnected ? handleTouchEnd : undefined}
+              onTouchCancel={controlEnabled && isConnected ? handleTouchEnd : undefined}
               onContextMenu={(e) => {
                  if(controlEnabled && isConnected) e.preventDefault(); 
               }}

@@ -6,6 +6,7 @@ import {
   sendWsMessage,
   mouseEventToInput,
   keyboardEventToInput,
+  touchEventToInput,
 } from '../utils/webrtc'
 import toast from 'react-hot-toast'
 
@@ -18,6 +19,7 @@ export function useWebRTC() {
   const [isHost, setIsHost] = useState(false)
   const isHostRef = useRef(false)
   const [remoteStream, setRemoteStream] = useState(null)
+  const [stats, setStats] = useState({ ping: 0, packetLoss: 0, bytesReceived: 0 })
 
   const pcRef = useRef(null)
   const wsRef = useRef(null)
@@ -30,6 +32,8 @@ export function useWebRTC() {
   const remoteModeRef = useRef('monitor')
   const lastMouseEventRef = useRef(0)
   const activeStreamRef = useRef(null)
+  const statsIntervalRef = useRef(null)
+  const touchStateRef = useRef({ lastDist: 0, longPressTimer: null })
 
   /**
    * Connect to signaling server
@@ -205,6 +209,39 @@ export function useWebRTC() {
       } else if (pc.connectionState === 'connected') {
         if (iceTimeoutRef.current) clearTimeout(iceTimeoutRef.current);
         setConnectionState(CONNECTION_STATE.CONNECTED)
+        
+        // Start stats polling
+        statsIntervalRef.current = setInterval(async () => {
+          if (!pcRef.current) return
+          try {
+            const stats = await pcRef.current.getStats()
+            let ping = 0
+            let packetsLost = 0
+            let packetsReceived = 0
+            let bytesReceived = 0
+            
+            stats.forEach(report => {
+              if (report.type === 'candidate-pair' && report.state === 'succeeded') {
+                ping = Math.round(report.currentRoundTripTime * 1000)
+              }
+              if (report.type === 'inbound-rtp' && report.kind === 'video') {
+                packetsLost = report.packetsLost || 0
+                packetsReceived = report.packetsReceived || 0
+                bytesReceived = report.bytesReceived || 0
+              }
+            })
+            
+            const packetLoss = packetsReceived > 0 ? ((packetsLost / (packetsLost + packetsReceived)) * 100).toFixed(1) : 0
+            
+            setStats({
+              ping: ping || '< 1',
+              packetLoss,
+              bytesReceived: (bytesReceived / 1024 / 1024).toFixed(2)
+            })
+          } catch (e) {
+            console.error('[Stats] Error', e)
+          }
+        }, 1000)
       } else if (['disconnected', 'failed', 'closed'].includes(pc.connectionState)) {
         if (iceTimeoutRef.current) clearTimeout(iceTimeoutRef.current);
         setConnectionState(CONNECTION_STATE.DISCONNECTED)
@@ -409,6 +446,92 @@ export function useWebRTC() {
   }, [connectionState, sendInputEvent])
 
   /**
+   * Handle Touch Start (Tap = Click, Hold = Right Click)
+   */
+  const handleTouchStart = useCallback((e) => {
+    if (connectionState !== CONNECTION_STATE.CONNECTED) return
+    if (e.touches.length === 1) {
+      // Setup long press for right click
+      touchStateRef.current.longPressTimer = setTimeout(() => {
+        const event = touchEventToInput(e, screenRef, 'touchstart', { button: 'right' })
+        if (event) sendInputEvent(event)
+        
+        // Auto release right click after a short delay
+        setTimeout(() => {
+           const upEvent = touchEventToInput(e, screenRef, 'touchend', { button: 'right' })
+           if (upEvent) sendInputEvent(upEvent)
+        }, 100)
+        
+        touchStateRef.current.longPressTimer = null
+        toast('Right click', { icon: '🖱️', id: 'rc' })
+      }, 500)
+    } else if (e.touches.length === 2) {
+      // Pinch to zoom initialization
+      if (touchStateRef.current.longPressTimer) clearTimeout(touchStateRef.current.longPressTimer)
+      const dx = e.touches[0].clientX - e.touches[1].clientX
+      const dy = e.touches[0].clientY - e.touches[1].clientY
+      touchStateRef.current.lastDist = Math.sqrt(dx*dx + dy*dy)
+    }
+  }, [connectionState, sendInputEvent])
+
+  /**
+   * Handle Touch Move (Pinch = Zoom)
+   */
+  const handleTouchMove = useCallback((e) => {
+    if (connectionState !== CONNECTION_STATE.CONNECTED) return
+    
+    // Cancel long press if moving
+    if (touchStateRef.current.longPressTimer) {
+      clearTimeout(touchStateRef.current.longPressTimer)
+      touchStateRef.current.longPressTimer = null
+      
+      // We moved, so it's a drag. Send mouse down now.
+      const downEvent = touchEventToInput(e, screenRef, 'touchstart', { button: 'left' })
+      if (downEvent) sendInputEvent(downEvent)
+    }
+
+    if (e.touches.length === 1) {
+      const now = Date.now()
+      if (now - lastMouseEventRef.current < 33) return
+      lastMouseEventRef.current = now
+
+      const event = touchEventToInput(e, screenRef, 'touchmove')
+      if (event) sendInputEvent(event)
+    } else if (e.touches.length === 2) {
+      const dx = e.touches[0].clientX - e.touches[1].clientX
+      const dy = e.touches[0].clientY - e.touches[1].clientY
+      const dist = Math.sqrt(dx*dx + dy*dy)
+      
+      const delta = touchStateRef.current.lastDist - dist
+      touchStateRef.current.lastDist = dist
+      
+      if (Math.abs(delta) > 2) {
+        const event = touchEventToInput(e, screenRef, 'pinch', { deltaY: delta * 2 })
+        if (event) sendInputEvent(event)
+      }
+    }
+  }, [connectionState, sendInputEvent])
+
+  /**
+   * Handle Touch End
+   */
+  const handleTouchEnd = useCallback((e) => {
+    if (connectionState !== CONNECTION_STATE.CONNECTED) return
+    
+    if (touchStateRef.current.longPressTimer) {
+      // It was a quick tap, so send left click down and up
+      clearTimeout(touchStateRef.current.longPressTimer)
+      touchStateRef.current.longPressTimer = null
+      
+      const downEvent = touchEventToInput(e, screenRef, 'touchstart', { button: 'left' })
+      if (downEvent) sendInputEvent(downEvent)
+    }
+    
+    const event = touchEventToInput(e, screenRef, 'touchend', { button: 'left' })
+    if (event) sendInputEvent(event)
+  }, [connectionState, sendInputEvent])
+
+  /**
    * Handle wheel (scroll)
    */
   const handleWheel = useCallback((e) => {
@@ -508,6 +631,11 @@ export function useWebRTC() {
    * Disconnect and cleanup
    */
   const disconnect = useCallback(() => {
+    if (statsIntervalRef.current) {
+      clearInterval(statsIntervalRef.current)
+      statsIntervalRef.current = null
+    }
+
     if (pcRef.current) {
       pcRef.current.close()
       pcRef.current = null
@@ -560,5 +688,11 @@ export function useWebRTC() {
     handleWheel,
     handleKeyDown,
     handleKeyUp,
+    handleTouchStart,
+    handleTouchMove,
+    handleTouchEnd,
+    
+    // Stats
+    stats,
   }
 }

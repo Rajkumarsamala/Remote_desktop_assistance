@@ -73,6 +73,47 @@ export function mouseEventToInput(event, screenRef) {
 }
 
 /**
+ * Convert touch event to input event JSON
+ */
+export function touchEventToInput(event, screenRef, type, options = {}) {
+  const video = screenRef?.current
+  if (!video || !video.videoWidth || !video.videoHeight) return null
+
+  const touch = event.touches[0] || event.changedTouches[0]
+  if (!touch) return null
+
+  const rect = video.getBoundingClientRect()
+  
+  const x = Math.round((touch.clientX - rect.left) * (video.videoWidth / rect.width));
+  const y = Math.round((touch.clientY - rect.top) * (video.videoHeight / rect.height));
+
+  let eventType = 'mouse_move'
+  let button = null
+
+  if (type === 'touchstart') {
+    eventType = 'mouse_down'
+    button = options.button || 'left'
+  } else if (type === 'touchend') {
+    eventType = 'mouse_up'
+    button = options.button || 'left'
+  } else if (type === 'touchmove') {
+    eventType = 'mouse_move'
+  } else if (type === 'pinch') {
+    eventType = 'scroll'
+  }
+
+  return {
+    event_type: eventType,
+    x,
+    y,
+    button,
+    delta_x: options.deltaX || 0,
+    delta_y: options.deltaY || 0,
+    timestamp: Date.now(),
+  }
+}
+
+/**
  * Convert keyboard event to input event JSON
  */
 export function keyboardEventToInput(event) {
