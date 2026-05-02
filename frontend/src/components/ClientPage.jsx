@@ -107,7 +107,7 @@ function ClientPage({ onConnect, onBack }) {
           transition={{ delay: 0.1 }}
           className="mb-10"
         >
-          <div className="glass-strong rounded-[2rem] p-10 inline-block relative overflow-hidden group border-white/10 hover:border-accent-cyan/30 transition-colors duration-500">
+          <div className="glass-strong rounded-[2rem] p-10 inline-block relative overflow-hidden group border-white/10 hover:border-accent-cyan/30 transition-all duration-500 shadow-lg focus-within:border-accent-cyan/50 focus-within:shadow-[0_0_30px_rgba(0,212,255,0.2)]">
             <div className="absolute inset-0 bg-gradient-to-r from-accent-purple/5 to-accent-cyan/5 opacity-0 group-hover:opacity-100 transition-opacity duration-500 pointer-events-none" />
             <input
               type="text"
@@ -140,6 +140,29 @@ function ClientPage({ onConnect, onBack }) {
                 />
               ))}
             </div>
+            
+            {/* Paste Button */}
+            {code.length === 0 && (
+              <motion.button
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                onClick={async () => {
+                  try {
+                    const text = await navigator.clipboard.readText()
+                    const formatted = formatCode(text)
+                    setCode(formatted)
+                    if (formatted.replace(/[^0-9]/g, '').length === 8) {
+                      toast.success('Code pasted successfully')
+                    }
+                  } catch (e) {
+                    toast.error('Unable to access clipboard')
+                  }
+                }}
+                className="absolute bottom-3 right-4 text-xs text-white/40 hover:text-white/80 transition-colors flex items-center gap-1 z-20"
+              >
+                Paste Code
+              </motion.button>
+            )}
           </div>
         </motion.div>
 

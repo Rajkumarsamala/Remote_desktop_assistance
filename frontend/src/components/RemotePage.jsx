@@ -13,6 +13,8 @@ function RemotePage({ webrtc, onDisconnect }) {
   const [isMuted, setIsMuted] = useState(true)
   const [copied, setCopied] = useState(false)
   const [sessionDuration, setSessionDuration] = useState(0)
+  const [isHeaderVisible, setIsHeaderVisible] = useState(true)
+  const headerTimeoutRef = useRef(null)
 
   const {
     connectionState,
@@ -74,6 +76,28 @@ function RemotePage({ webrtc, onDisconnect }) {
     }
   }, [remoteStream, screenRef])
 
+  // Header Auto-Hide Logic
+  const resetHeaderTimeout = () => {
+    setIsHeaderVisible(true)
+    if (headerTimeoutRef.current) clearTimeout(headerTimeoutRef.current)
+    headerTimeoutRef.current = setTimeout(() => {
+      if (isConnected) {
+        setIsHeaderVisible(false)
+      }
+    }, 3000)
+  }
+
+  useEffect(() => {
+    if (isConnected) {
+      resetHeaderTimeout()
+    } else {
+      setIsHeaderVisible(true)
+    }
+    return () => {
+      if (headerTimeoutRef.current) clearTimeout(headerTimeoutRef.current)
+    }
+  }, [isConnected])
+
   // Handle control toggle safely
   const handleToggleControl = () => {
     const newState = toggleInput()
@@ -113,11 +137,18 @@ function RemotePage({ webrtc, onDisconnect }) {
         }
       }}
     >
+      {/* Top hover zone to reveal header */}
+      <div 
+        className="absolute top-0 left-0 w-full h-16 z-50" 
+        onMouseEnter={resetHeaderTimeout}
+      />
+
       {/* Top Control Bar (Floating Dock) */}
       <motion.header
         initial={{ y: -100, opacity: 0 }}
-        animate={{ y: 0, opacity: 1 }}
+        animate={{ y: isHeaderVisible ? 0 : -100, opacity: isHeaderVisible ? 1 : 0 }}
         transition={{ type: 'spring', stiffness: 200, damping: 20 }}
+        onMouseEnter={resetHeaderTimeout}
         className="absolute top-4 left-1/2 -translate-x-1/2 h-16 w-[95%] max-w-6xl glass-strong border border-white/10 rounded-2xl flex items-center justify-between px-6 z-40 shadow-[0_20px_50px_-12px_rgba(0,0,0,0.5)]"
       >
         {/* Left: Info */}
@@ -323,6 +354,7 @@ function RemotePage({ webrtc, onDisconnect }) {
           {/* Video element */}
           <div
             className={`w-full h-full relative bg-black/50 backdrop-blur-sm ${controlEnabled && isConnected ? 'cursor-none pointer-events-none' : 'cursor-default'}`}
+            onMouseMove={resetHeaderTimeout}
           >
             <video
               id="remoteVideo"

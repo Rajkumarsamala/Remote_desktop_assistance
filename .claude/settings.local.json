@@ -17,7 +17,9 @@
       "Bash(python:*)",
       "Bash(pkill -f \"python signaling_server/server.py\")",
       "Bash(pkill -f \"python.*host.py\")",
-      "Bash(netstat -ano)"
+      "Bash(netstat -ano)",
+      "Bash(pip list:*)",
+      "Bash(pip show:*)"
     ]
   }
 }
