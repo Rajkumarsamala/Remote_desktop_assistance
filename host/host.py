@@ -111,6 +111,7 @@ class ScreenCapture:
         self.monitor = self.sct.monitors[1]  # Primary monitor
         self.running = False
         self.frame_count = 0
+        self.scale_factor = 1.0
 
     def get_frame(self) -> bytes:
         """
@@ -138,12 +139,25 @@ class ScreenCapture:
         Returns:
             RGB numpy array (height, width, 3)
         """
+        import cv2
         # Capture screen
         screenshot = self.sct.grab(self.monitor)
 
-        # Convert to numpy array (BGRA -> RGB)
-        img = Image.frombytes("RGB", screenshot.size, screenshot.bgra, "raw", "BGRX")
-        return np.array(img)
+        # Convert to numpy array directly (fast)
+        img = np.array(screenshot)
+
+        # Dynamic downscaling for latency
+        height, width = img.shape[:2]
+        if width > 1920:
+            scale = 1920 / width
+            new_width, new_height = int(width * scale), int(height * scale)
+            img = cv2.resize(img, (new_width, new_height), interpolation=cv2.INTER_LINEAR)
+            self.scale_factor = 1.0 / scale
+        else:
+            self.scale_factor = 1.0
+
+        # Convert BGRA to RGB
+        return cv2.cvtColor(img, cv2.COLOR_BGRA2RGB)
 
     def get_frame_with_cursor(self) -> bytes:
         """
@@ -191,9 +205,10 @@ class InputHandler:
     Executes mouse and keyboard events on the host machine.
     """
 
-    def __init__(self):
+    def __init__(self, screen_capture=None):
         self.last_x = 0
         self.last_y = 0
+        self.screen_capture = screen_capture
 
     def execute_event(self, event: InputEvent):
         """
@@ -203,15 +218,19 @@ class InputHandler:
             event: InputEvent object containing event details
         """
         try:
-            safe_log(f"Received: {event.event_type} at {event.x}, {event.y}")
+            scale = getattr(self.screen_capture, 'scale_factor', 1.0) if self.screen_capture else 1.0
+            scaled_x = int(event.x * scale)
+            scaled_y = int(event.y * scale)
+
+            safe_log(f"Received: {event.event_type} at {scaled_x}, {scaled_y}")
             if event.event_type == 'mouse_move':
                 # Move mouse to absolute position
-                pyautogui.moveTo(int(event.x), int(event.y), duration=0.0)
-                self.last_x, self.last_y = event.x, event.y
+                pyautogui.moveTo(scaled_x, scaled_y, duration=0.0)
+                self.last_x, self.last_y = scaled_x, scaled_y
 
             elif event.event_type == 'mouse_down':
                 # Handle mouse click (down) at position to allow dragging
-                pyautogui.moveTo(int(event.x), int(event.y), duration=0.0)
+                pyautogui.moveTo(scaled_x, scaled_y, duration=0.0)
                 if event.button == 'left':
                     pyautogui.mouseDown(button='left')
                 elif event.button == 'right':
@@ -534,7 +553,7 @@ class HostApplication:
 
         # Components
         self.screen_capture = ScreenCapture(quality=quality, fps=fps)
-        self.input_handler = InputHandler()
+        self.input_handler = InputHandler(screen_capture=self.screen_capture)
 
         # WebRTC
         self.peer_connection: Optional[RTCPeerConnection] = None
