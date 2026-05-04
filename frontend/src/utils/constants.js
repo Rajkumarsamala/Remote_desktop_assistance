@@ -17,16 +17,10 @@ export const ICE_SERVERS = (TURN_URL && TURN_USERNAME && TURN_PASSWORD)
     ]
   : baseIceServers;
 
-// Determine signaling server URL dynamically (env var > current host > fallback)
+// Determine signaling server URL dynamically (env var > fallback)
 const getSignalingUrl = () => {
   if (import.meta.env.VITE_SIGNALING_URL) {
     return import.meta.env.VITE_SIGNALING_URL;
-  }
-  
-  // Use relative host if in production
-  if (typeof window !== 'undefined' && window.location.hostname !== 'localhost') {
-    const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-    return `${protocol}//${window.location.host}`;
   }
   
   return 'wss://remote-view-signaling.onrender.com';
@@ -35,10 +29,6 @@ const getSignalingUrl = () => {
 const getApiUrl = () => {
   if (import.meta.env.VITE_API_URL) {
     return import.meta.env.VITE_API_URL;
-  }
-  
-  if (typeof window !== 'undefined' && window.location.hostname !== 'localhost') {
-    return `${window.location.protocol}//${window.location.host}`;
   }
   
   return 'https://remote-view-signaling.onrender.com';
