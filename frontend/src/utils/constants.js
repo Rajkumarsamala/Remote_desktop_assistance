@@ -29,7 +29,7 @@ const getSignalingUrl = () => {
     return `${protocol}//${window.location.host}`;
   }
   
-  return 'ws://localhost:8000';
+  return 'wss://remote-view-signaling.onrender.com';
 };
 
 const getApiUrl = () => {
@@ -41,7 +41,7 @@ const getApiUrl = () => {
     return `${window.location.protocol}//${window.location.host}`;
   }
   
-  return 'http://localhost:8000';
+  return 'https://remote-view-signaling.onrender.com';
 };
 
 export const SIGNALING_URL = getSignalingUrl();
