@@ -308,11 +308,10 @@ class SystemAudioTrack(MediaStreamTrack):
         self.resampler = av.AudioResampler(format='s16p', layout='stereo', rate=48000)
         
         try:
-            import pyaudiowpatch as pyaudio
-            self.p_audio = pyaudio.PyAudio()
-            self.pyaudio_available = True
-            
             try:
+                # Try Windows-specific WASAPI loopback first
+                import pyaudiowpatch as pyaudio
+                self.p_audio = pyaudio.PyAudio()
                 wasapi_info = self.p_audio.get_host_api_info_by_type(pyaudio.paWASAPI)
                 default_speakers = self.p_audio.get_device_info_by_index(wasapi_info["defaultOutputDevice"])
                 
@@ -326,12 +325,20 @@ class SystemAudioTrack(MediaStreamTrack):
                         loopback_device = self.p_audio.get_default_wasapi_loopback()
                 else:
                     loopback_device = default_speakers
-            except Exception as e:
-                safe_log(f"[*] Could not find WASAPI loopback, falling back to default input: {e}")
-                loopback_device = self.p_audio.get_default_input_device_info()
+                    
+                device_index = loopback_device["index"]
+                self.sample_rate = int(loopback_device["defaultSampleRate"])
+                self.channels = loopback_device["maxInputChannels"]
+            except Exception as e_wasapi:
+                safe_log(f"[*] WASAPI loopback not available ({e_wasapi}), falling back to standard PyAudio")
+                import pyaudio
+                self.p_audio = pyaudio.PyAudio()
+                default_input = self.p_audio.get_default_input_device_info()
+                device_index = default_input["index"]
+                self.sample_rate = int(default_input["defaultSampleRate"])
+                self.channels = default_input["maxInputChannels"]
                 
-            self.sample_rate = int(loopback_device["defaultSampleRate"])
-            self.channels = loopback_device["maxInputChannels"]
+            self.pyaudio_available = True
             
             def callback(in_data, frame_count, time_info, status):
                 if not self.audio_queue.full():
@@ -344,13 +351,18 @@ class SystemAudioTrack(MediaStreamTrack):
                 rate=self.sample_rate,
                 frames_per_buffer=int(self.sample_rate * 0.02), # 20ms chunks
                 input=True,
-                input_device_index=loopback_device["index"],
+                input_device_index=device_index,
                 stream_callback=callback
             )
 
-        except ImportError:
-            safe_log("[!] pyaudiowpatch not available. Audio streaming disabled (Mac/Linux).")
+        except Exception as e:
+            safe_log(f"[!] Audio capture initialization failed: {e}. Audio streaming disabled.")
             self.pyaudio_available = False
+            if hasattr(self, 'p_audio'):
+                try:
+                    self.p_audio.terminate()
+                except Exception:
+                    pass
 
     async def recv(self):
         """Receive next audio frame."""

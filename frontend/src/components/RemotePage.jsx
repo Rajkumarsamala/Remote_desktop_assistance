@@ -10,7 +10,7 @@ function RemotePage({ webrtc, onDisconnect }) {
   const containerRef = useRef(null)
   const [controlEnabled, setControlEnabled] = useState(true)
   const [hasInteracted, setHasInteracted] = useState(false)
-  const [isMuted, setIsMuted] = useState(true)
+  const [isMuted, setIsMuted] = useState(false)
   const [copied, setCopied] = useState(false)
   const [sessionDuration, setSessionDuration] = useState(0)
   const [isHeaderVisible, setIsHeaderVisible] = useState(true)
@@ -361,7 +361,7 @@ function RemotePage({ webrtc, onDisconnect }) {
               ref={screenRef}
               autoPlay
               playsInline
-              muted={isMuted}
+              muted={!hasInteracted || isMuted}
               className={`w-full h-full object-contain drop-shadow-2xl ${controlEnabled ? 'pointer-events-auto' : 'pointer-events-none'}`}
               style={{ display: hasStream ? 'block' : 'none', touchAction: 'none' }}
               onMouseMove={controlEnabled && isConnected ? handleMouseMove : undefined}
