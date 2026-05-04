@@ -334,6 +334,8 @@ class SystemAudioTrack(MediaStreamTrack):
                 safe_log("[!] WARNING: System audio loopback is not natively supported on this OS.")
                 safe_log("[!] Audio streaming is disabled to protect your privacy (preventing microphone capture).")
                 self.pyaudio_available = False
+                if hasattr(self, 'p_audio') and self.p_audio is not None:
+                    self.p_audio.terminate()
                 return
                 
             self.pyaudio_available = True

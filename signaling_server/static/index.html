@@ -354,7 +354,7 @@
                 ws = new WebSocket(wsUrl);
 
                 ws.onopen = () => {
-                    console.log('[WS] Connected');
+                    // console.log('[WS] Connected');
                     resolve();
                 };
 
@@ -364,7 +364,7 @@
                 };
 
                 ws.onclose = (event) => {
-                    console.log('[WS] Closed:', event.code, event.reason);
+                    // console.log('[WS] Closed:', event.code, event.reason);
                 };
 
                 ws.onmessage = (event) => {
@@ -375,11 +375,11 @@
 
         // Handle incoming messages
         async function handleMessage(msg) {
-            console.log('[MSG]', msg.type);
+            // console.log('[MSG]', msg.type);
 
             switch (msg.type) {
                 case 'host_registered':
-                    console.log('[+] Registered as host');
+                    // console.log('[+] Registered as host');
                     updateStatus('hostStatus', 'success', 'Waiting for viewer to connect...', true);
                     document.getElementById('hostInfo').textContent = 'Waiting for viewer to connect...';
                     document.getElementById('hostInfo').classList.add('connecting');
@@ -396,17 +396,17 @@
                     break;
 
                 case 'client_registered':
-                    console.log('[+] Registered as client');
+                    // console.log('[+] Registered as client');
                     updateStatus('clientStatus', 'success', 'Connected to session!', true);
                     break;
 
                 case 'offer':
-                    console.log('[+] Received offer');
+                    // console.log('[+] Received offer');
                     await handleOffer(msg.sdp);
                     break;
 
                 case 'answer':
-                    console.log('[+] Received answer');
+                    // console.log('[+] Received answer');
                     await handleAnswer(msg.sdp);
                     break;
 
@@ -445,7 +445,7 @@
             };
 
             peerConnection.ontrack = (event) => {
-                console.log('[+] Remote track received');
+                // console.log('[+] Remote track received');
                 const [stream] = event.streams;
                 document.getElementById('remoteScreen').srcObject = stream;
                 document.getElementById('remoteScreen').style.display = 'block';
@@ -453,7 +453,7 @@
             };
 
             peerConnection.onconnectionstatechange = () => {
-                console.log('[PC] State:', peerConnection.connectionState);
+                // console.log('[PC] State:', peerConnection.connectionState);
                 if (peerConnection.connectionState === 'connected') {
                     onConnected();
                 } else if (['disconnected', 'failed', 'closed'].includes(peerConnection.connectionState)) {
@@ -477,8 +477,8 @@
 
         // Setup data channel
         function setupDataChannel(channel) {
-            channel.onopen = () => console.log('[DC] Open');
-            channel.onclose = () => console.log('[DC] Closed');
+            channel.onopen = () => // console.log('[DC] Open');
+            channel.onclose = () => // console.log('[DC] Closed');
             channel.onmessage = (event) => handleInputEvent(event.data);
         }
 
@@ -643,7 +643,7 @@
 
         // Handle input events
         function handleInputEvent(data) {
-            console.log('Input event received:', data);
+            // console.log('Input event received:', data);
             // This would send input events to control the host
             // For web client, we need to capture local input and send to data channel
         }
