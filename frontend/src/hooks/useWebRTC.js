@@ -41,13 +41,13 @@ export function useWebRTC() {
   const connectSignaling = useCallback((code, role) => {
     return new Promise((resolve, reject) => {
       const wsUrl = `${SIGNALING_URL}/ws/${role}:${code}`
-      console.log('[WS] Connecting to:', wsUrl)
+      import.meta.env.DEV && console.log('[WS] Connecting to:', wsUrl)
 
       const ws = new WebSocket(wsUrl)
       wsRef.current = ws
 
       ws.onopen = () => {
-        console.log('[WS] Socket open, waiting for registration...')
+        import.meta.env.DEV && console.log('[WS] Socket open, waiting for registration...')
       }
 
       ws.onerror = (error) => {
@@ -57,7 +57,7 @@ export function useWebRTC() {
       }
 
       ws.onclose = (event) => {
-        console.log('[WS] Closed:', event.code, event.reason)
+        import.meta.env.DEV && console.log('[WS] Closed:', event.code, event.reason)
         reject(new Error(event.reason || 'Session not found or invalid'))
         
         if (connectionState !== CONNECTION_STATE.CONNECTED) {
@@ -80,13 +80,14 @@ export function useWebRTC() {
         }
       }
     })
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [connectionState])
 
   /**
    * Handle signaling messages
    */
   const handleSignalingMessage = useCallback(async (msg) => {
-    console.log('[SIG]', msg.type)
+    import.meta.env.DEV && console.log('[SIG]', msg.type)
 
     switch (msg.type) {
       case MSG_TYPES.HOST_REGISTERED:
@@ -109,12 +110,12 @@ export function useWebRTC() {
         break
 
       case MSG_TYPES.OFFER:
-        console.log('[SIG] Received offer')
+        import.meta.env.DEV && console.log('[SIG] Received offer')
         await handleOffer(msg.sdp)
         break
 
       case MSG_TYPES.ANSWER:
-        console.log('[SIG] Received answer')
+        import.meta.env.DEV && console.log('[SIG] Received answer')
         await handleAnswer(msg.sdp)
         break
 
@@ -127,7 +128,7 @@ export function useWebRTC() {
               console.error('[ICE] Add error:', e)
             }
           } else {
-            console.log('[ICE] Queuing candidate')
+            import.meta.env.DEV && console.log('[ICE] Queuing candidate')
             iceCandidateQueueRef.current.push(msg.candidate)
           }
         }
@@ -142,6 +143,7 @@ export function useWebRTC() {
         toast.error(msg.message || 'Unknown error')
         break
     }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
   /**
@@ -161,7 +163,7 @@ export function useWebRTC() {
     }
 
     pc.ontrack = (event) => {
-      console.log("Track received:", event.track.kind);
+      import.meta.env.DEV && console.log("Track received:", event.track.kind);
       
       if (!activeStreamRef.current) {
         activeStreamRef.current = new MediaStream();
@@ -178,13 +180,13 @@ export function useWebRTC() {
       const video = document.getElementById("remoteVideo");
       if (video) {
         video.srcObject = activeStreamRef.current;
-        console.log("Video stream set via ID with tracks:", activeStreamRef.current.getTracks().map(t => t.kind));
+        import.meta.env.DEV && console.log("Video stream set via ID with tracks:", activeStreamRef.current.getTracks().map(t => t.kind));
       }
     };
 
     pc.onconnectionstatechange = () => {
-      console.log(pc.connectionState)
-      console.log('[PC] State:', pc.connectionState)
+      import.meta.env.DEV && console.log(pc.connectionState)
+      import.meta.env.DEV && console.log('[PC] State:', pc.connectionState)
       
       if (pc.connectionState === 'connecting') {
         setConnectionState(CONNECTION_STATE.CONNECTING)
@@ -252,8 +254,8 @@ export function useWebRTC() {
     }
 
     pc.oniceconnectionstatechange = () => {
-      console.log(pc.iceConnectionState)
-      console.log("ICE state:", pc.iceConnectionState)
+      import.meta.env.DEV && console.log(pc.iceConnectionState)
+      import.meta.env.DEV && console.log("ICE state:", pc.iceConnectionState)
     }
 
     if (isHostRef.current) {
@@ -268,6 +270,7 @@ export function useWebRTC() {
     }
 
     return pc
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
   /**
@@ -277,7 +280,7 @@ export function useWebRTC() {
   const handleInputEvent = useCallback((event) => {
     // DOM simulation has been removed for production-level desktop native execution.
     // The browser host will not securely execute OS-level events.
-    console.log('[DC] Input event logged securely:', event.event_type);
+    import.meta.env.DEV && console.log('[DC] Input event logged securely:', event.event_type);
   }, [])
 
   /**
@@ -287,7 +290,7 @@ export function useWebRTC() {
     dataChannelRef.current = channel
 
     channel.onopen = () => {
-      console.log('[DC] Open')
+      import.meta.env.DEV && console.log('[DC] Open')
       toast.success('Input channel ready!')
 
       if (isHostRef.current && shareModeRef.current) {
@@ -299,7 +302,7 @@ export function useWebRTC() {
     }
 
     channel.onclose = () => {
-      console.log('[DC] Closed')
+      import.meta.env.DEV && console.log('[DC] Closed')
     }
 
     channel.onmessage = (event) => {
@@ -307,7 +310,7 @@ export function useWebRTC() {
         const inputEvent = JSON.parse(event.data)
 
         if (inputEvent.event_type === 'mode_info') {
-          console.log('[DC] Mode set explicitly to:', inputEvent.mode)
+          import.meta.env.DEV && console.log('[DC] Mode set explicitly to:', inputEvent.mode)
           remoteModeRef.current = inputEvent.mode
           if (inputEvent.mode === 'window') {
             toast('Window sharing detected: input control restricted.', { icon: '⚠️' })
@@ -355,6 +358,7 @@ export function useWebRTC() {
     await pc.setLocalDescription(offer)
 
     sendWsMessage(wsRef.current, MSG_TYPES.OFFER, { sdp: offer.sdp })
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
   /**
@@ -572,13 +576,13 @@ export function useWebRTC() {
    */
   const startHost = useCallback(async () => {
     try {
-      console.log('[Host] Creating session via: /create-session')
+      import.meta.env.DEV && console.log('[Host] Creating session via: /create-session')
 
       const response = await fetch(`${API_URL}/create-session`, {
         method: 'POST',
       })
 
-      console.log('[Host] Response status:', response.status)
+      import.meta.env.DEV && console.log('[Host] Response status:', response.status)
 
       if (!response.ok) {
         const errorText = await response.text()
@@ -587,7 +591,7 @@ export function useWebRTC() {
       }
 
       const data = await response.json()
-      console.log('[Host] Session created:', data)
+      import.meta.env.DEV && console.log('[Host] Session created:', data)
       const code = data.code
 
       setSessionCode(code)
@@ -611,7 +615,7 @@ export function useWebRTC() {
   const joinSession = useCallback(async (code) => {
     try {
       const cleanCode = code.replace(/[^0-9]/g, '')
-      console.log('[Client] Joining session:', cleanCode)
+      import.meta.env.DEV && console.log('[Client] Joining session:', cleanCode)
 
       setSessionCode(cleanCode)
       setIsHost(false)

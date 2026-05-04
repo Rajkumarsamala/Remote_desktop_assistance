@@ -103,7 +103,7 @@ class SessionManager:
 
         Args:
             code: Session code
-            host_ws: Host's WebSocket connection
+            host_ws: Host's WebSocket connection (None to disconnect)
 
         Returns:
             True if registered successfully
@@ -114,7 +114,7 @@ class SessionManager:
                 return False
 
             session.host_ws = host_ws
-            session.host_connected = True
+            session.host_connected = (host_ws is not None)
             session.update_activity()
             return True
 
@@ -124,7 +124,7 @@ class SessionManager:
 
         Args:
             code: Session code
-            client_ws: Client's WebSocket connection
+            client_ws: Client's WebSocket connection (None to disconnect)
 
         Returns:
             True if registered successfully
@@ -134,13 +134,16 @@ class SessionManager:
             if not session:
                 return False
 
-            # If host not registered yet, mark as waiting
-            if not session.host_connected:
+            # If host not registered yet and trying to connect, deny
+            if not session.host_connected and client_ws is not None:
                 return False
 
             session.client_ws = client_ws
-            session.client_connected = True
-            session.mark_connected()
+            session.client_connected = (client_ws is not None)
+            if client_ws is not None:
+                session.mark_connected()
+            else:
+                session.update_activity()
             return True
 
     def set_session_state(self, code: str, state: SessionState) -> bool:

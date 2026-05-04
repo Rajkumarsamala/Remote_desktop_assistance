@@ -1,6 +1,6 @@
-import React, { useState, useEffect } from 'react'
+import { useState, useEffect } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
-import { Monitor, Users, Zap, Shield, Download, Command, ChevronRight, Globe, Laptop, Server, Menu, X, ArrowRight, CheckCircle2, Github, Twitter, Linkedin } from 'lucide-react'
+import { Monitor, Users, Zap, Shield, Download, Command, Globe, Laptop, Server, Menu, X, ArrowRight, CheckCircle2, Github, Twitter, Linkedin } from 'lucide-react'
 
 // Features Data
 const features = [
@@ -203,7 +203,7 @@ function HomePage({ onJoinSession, isConnecting }) {
           <div className="text-center mb-20">
             <h2 className="text-accent-cyan font-semibold tracking-wider uppercase text-sm mb-4">Enterprise Grade</h2>
             <h3 className="text-4xl md:text-5xl font-bold mb-6">Built for ultimate performance</h3>
-            <p className="text-white/50 text-lg max-w-2xl mx-auto">We've engineered RemoteView from the ground up to provide the most fluid, responsive remote desktop experience possible.</p>
+            <p className="text-white/50 text-lg max-w-2xl mx-auto">We&apos;ve engineered RemoteView from the ground up to provide the most fluid, responsive remote desktop experience possible.</p>
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">

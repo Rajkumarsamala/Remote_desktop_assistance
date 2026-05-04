@@ -1,4 +1,4 @@
-import { ICE_SERVERS, MSG_TYPES } from './constants'
+import { ICE_SERVERS } from './constants'
 
 /**
  * Create a new RTCPeerConnection with STUN servers
@@ -59,7 +59,7 @@ export function mouseEventToInput(event, screenRef) {
       break
   }
   
-  console.log("Sending:", x, y, eventType)
+  import.meta.env.DEV && console.log("Sending:", x, y, eventType)
 
   return {
     event_type: eventType,

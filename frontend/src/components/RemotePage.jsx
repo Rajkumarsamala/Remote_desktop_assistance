@@ -34,6 +34,11 @@ function RemotePage({ webrtc, onDisconnect }) {
     stats,
   } = webrtc
 
+  const isConnected = connectionState === CONNECTION_STATE.CONNECTED
+  const isConnecting = connectionState === CONNECTION_STATE.CONNECTING
+  const hasStream = !!remoteStream
+  const hasAudioTrack = remoteStream && remoteStream.getAudioTracks().length > 0
+
   const formatCode = (code) => {
     if (!code) return '----'
     const clean = code.replace(/[^0-9]/g, '')
@@ -96,6 +101,7 @@ function RemotePage({ webrtc, onDisconnect }) {
     return () => {
       if (headerTimeoutRef.current) clearTimeout(headerTimeoutRef.current)
     }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isConnected])
 
   // Handle control toggle safely
@@ -117,11 +123,6 @@ function RemotePage({ webrtc, onDisconnect }) {
       }
     }
   }
-
-  const isConnected = connectionState === CONNECTION_STATE.CONNECTED
-  const isConnecting = connectionState === CONNECTION_STATE.CONNECTING
-  const hasStream = !!remoteStream
-  const hasAudioTrack = remoteStream && remoteStream.getAudioTracks().length > 0
 
   return (
     <div
@@ -356,6 +357,7 @@ function RemotePage({ webrtc, onDisconnect }) {
             className={`w-full h-full relative bg-black/50 backdrop-blur-sm ${controlEnabled && isConnected ? 'cursor-none pointer-events-none' : 'cursor-default'}`}
             onMouseMove={resetHeaderTimeout}
           >
+            {/* Note: Browsers require video to be muted to autoplay without prior user interaction */}
             <video
               id="remoteVideo"
               ref={screenRef}

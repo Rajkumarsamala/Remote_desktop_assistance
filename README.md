@@ -3,11 +3,12 @@
 Welcome to **RemoteView**, a production-ready, peer-to-peer remote desktop system inspired by AnyDesk and TeamViewer. Fast, highly secure, and driven by WebRTC native APIs, RemoteView lets you control host devices effortlessly through any modern browser!
 
 ## 🚀 Features
-- **Cross-Platform Host Integration:** Packaged natively for Windows and macOS.
-- **Sub-30ms Latency:** Peer-to-peer WebRTC eliminates server processing delays.
+- **SaaS-Grade Security:** Hosts must explicitly approve connection requests via a GUI prompt before screen sharing begins.
+- **Cross-Platform Host Integration:** Packaged natively for Windows, macOS, and Linux.
+- **Sub-30ms Latency:** Peer-to-peer WebRTC eliminates server processing delays (up to 30 FPS).
 - **Complete Control:** Full mouse events (move/click/drag) and keyboard inputs (keys/combinations).
-- **High-Quality Audio:** Synchronized system audio streaming natively mapped.
-- **Relay Supported:** Implements reliable NAT-busting via Metered STUN and TURN architectures.
+- **High-Quality Audio:** Synchronized system audio streaming natively mapped (WASAPI on Windows. Audio securely disabled by default on Mac/Linux to prevent hot-miking).
+- **Relay Supported:** Implements reliable NAT-busting via OpenRelay STUN and TURN architectures.
 - **Commercial Landing Page:** Vercel-deployed modern gateway.
 
 ---

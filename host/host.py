@@ -23,7 +23,7 @@ from typing import Optional, Dict, Any
 from fractions import Fraction
 import argparse
 import tkinter as tk
-from tkinter import ttk
+from tkinter import ttk, messagebox
 
 import sys
 import os
@@ -330,13 +330,11 @@ class SystemAudioTrack(MediaStreamTrack):
                 self.sample_rate = int(loopback_device["defaultSampleRate"])
                 self.channels = loopback_device["maxInputChannels"]
             except Exception as e_wasapi:
-                safe_log(f"[*] WASAPI loopback not available ({e_wasapi}), falling back to standard PyAudio")
-                import pyaudio
-                self.p_audio = pyaudio.PyAudio()
-                default_input = self.p_audio.get_default_input_device_info()
-                device_index = default_input["index"]
-                self.sample_rate = int(default_input["defaultSampleRate"])
-                self.channels = default_input["maxInputChannels"]
+                safe_log(f"[*] WASAPI loopback not available ({e_wasapi}).")
+                safe_log("[!] WARNING: System audio loopback is not natively supported on this OS.")
+                safe_log("[!] Audio streaming is disabled to protect your privacy (preventing microphone capture).")
+                self.pyaudio_available = False
+                return
                 
             self.pyaudio_available = True
             
@@ -770,14 +768,41 @@ class HostApplication:
         msg_type = msg.get("type")
 
         if msg_type == "client_joined":
-            safe_log("[*] Client connected, creating offer...")
-            offer = await self.peer_connection.createOffer()
-            await self.peer_connection.setLocalDescription(offer)
-            await self.websocket.send(json.dumps({
-                "type": MSG_TYPE_OFFER,
-                "sdp": self.peer_connection.localDescription.sdp
-            }))
-            safe_log("[*] Offer sent")
+            safe_log("[*] Client requested connection. Waiting for user approval...")
+            
+            def prompt_user():
+                root = tk.Tk()
+                root.withdraw()
+                root.attributes('-topmost', True)
+                result = messagebox.askyesno(
+                    "Remote Access Request",
+                    "A viewer is requesting access to your screen.\n\nDo you want to allow this connection?",
+                    icon='warning'
+                )
+                root.destroy()
+                return result
+                
+            loop = asyncio.get_running_loop()
+            approved = await loop.run_in_executor(None, prompt_user)
+            
+            if approved:
+                safe_log("[+] Access granted. Creating offer...")
+                offer = await self.peer_connection.createOffer()
+                await self.peer_connection.setLocalDescription(offer)
+                await self.websocket.send(json.dumps({
+                    "type": MSG_TYPE_OFFER,
+                    "sdp": self.peer_connection.localDescription.sdp
+                }))
+                safe_log("[*] Offer sent")
+            else:
+                safe_log("[-] Access denied. Rejecting client.")
+                await self.websocket.send(json.dumps({
+                    "type": "close_session"
+                }))
+                # Clean up the peer connection to prepare for next attempt
+                if hasattr(self, 'peer_connection') and self.peer_connection:
+                    await self.peer_connection.close()
+                    await self.setup_webrtc()
 
         elif msg_type == MSG_TYPE_ANSWER:
             sdp = msg.get("sdp")

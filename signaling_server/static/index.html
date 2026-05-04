@@ -410,7 +410,7 @@
                     await handleAnswer(msg.sdp);
                     break;
 
-                case 'ice_candidate':
+                case 'ice-candidate':
                     if (msg.candidate) {
                         try {
                             await peerConnection.addIceCandidate(msg.candidate);
@@ -438,7 +438,7 @@
             peerConnection.onicecandidate = (event) => {
                 if (event.candidate) {
                     sendMessage({
-                        type: 'ice_candidate',
+                        type: 'ice-candidate',
                         candidate: event.candidate.toJSON()
                     });
                 }
@@ -529,21 +529,28 @@
         // Create session (host)
         async function createSession() {
             try {
-                sessionCode = 'host:' + Math.random().toString(36).substring(2, 10);
                 isHost = true;
-
-                await connectWebSocket();
 
                 document.getElementById('hostCode').textContent = 'GENERATING...';
                 document.getElementById('hostCodeDisplay').style.display = 'block';
                 updateStatus('hostStatus', 'info', 'Creating session...', true);
 
-                // Generate session code via REST (or use WebSocket)
-                const response = await fetch(`http://${SIGNALING_SERVER.replace('ws://','')}/create-session`);
+                // Generate session code via REST
+                const serverHost = SIGNALING_SERVER.replace('ws://', '').replace('wss://', '');
+                const protocol = SIGNALING_SERVER.startsWith('wss') ? 'https' : 'http';
+                const response = await fetch(`${protocol}://${serverHost}/create-session`, {
+                    method: 'POST'
+                });
+                
                 if (response.ok) {
                     const data = await response.json();
                     sessionCode = 'host:' + data.code;
                     document.getElementById('hostCode').textContent = data.code;
+                    
+                    // Connect WebSocket AFTER session is created
+                    await connectWebSocket();
+                } else {
+                    throw new Error(`Server returned ${response.status}`);
                 }
 
             } catch (error) {

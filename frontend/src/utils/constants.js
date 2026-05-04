@@ -1,20 +1,51 @@
-const TURN_URL = import.meta.env.VITE_TURN_URL || "turn:openrelay.metered.ca:443";
-const TURN_USERNAME = import.meta.env.VITE_TURN_USERNAME || "openrelayproject";
-const TURN_PASSWORD = import.meta.env.VITE_TURN_PASSWORD || "openrelayproject";
+const TURN_URL = import.meta.env.VITE_TURN_URL;
+const TURN_USERNAME = import.meta.env.VITE_TURN_USERNAME;
+const TURN_PASSWORD = import.meta.env.VITE_TURN_PASSWORD;
 
-export const ICE_SERVERS = [
-  { urls: "stun:stun.l.google.com:19302" },
-  {
-    urls: "turn:openrelay.metered.ca:443",
-    username: "openrelayproject",
-    credential: "openrelayproject"
+const baseIceServers = [
+  { urls: "stun:stun.l.google.com:19302" }
+];
+
+export const ICE_SERVERS = (TURN_URL && TURN_USERNAME && TURN_PASSWORD) 
+  ? [
+      ...baseIceServers,
+      {
+        urls: TURN_URL,
+        username: TURN_USERNAME,
+        credential: TURN_PASSWORD
+      }
+    ]
+  : baseIceServers;
+
+// Determine signaling server URL dynamically (env var > current host > fallback)
+const getSignalingUrl = () => {
+  if (import.meta.env.VITE_SIGNALING_URL) {
+    return import.meta.env.VITE_SIGNALING_URL;
   }
-]
+  
+  // Use relative host if in production
+  if (typeof window !== 'undefined' && window.location.hostname !== 'localhost') {
+    const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+    return `${protocol}//${window.location.host}`;
+  }
+  
+  return 'ws://localhost:8000';
+};
 
-// Signaling Server URL - use wss:// for secure WebSocket over public internet
-export const SIGNALING_URL = 'wss://remote-view-signaling.onrender.com'
-// API URL uses https:// (not wss://)
-export const API_URL = 'https://remote-view-signaling.onrender.com'
+const getApiUrl = () => {
+  if (import.meta.env.VITE_API_URL) {
+    return import.meta.env.VITE_API_URL;
+  }
+  
+  if (typeof window !== 'undefined' && window.location.hostname !== 'localhost') {
+    return `${window.location.protocol}//${window.location.host}`;
+  }
+  
+  return 'http://localhost:8000';
+};
+
+export const SIGNALING_URL = getSignalingUrl();
+export const API_URL = getApiUrl();
 
 // Message Types
 export const MSG_TYPES = {

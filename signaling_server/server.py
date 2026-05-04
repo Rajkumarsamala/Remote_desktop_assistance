@@ -71,9 +71,11 @@ app = FastAPI(
 
 # Add CORS middleware for HTTP endpoints only
 # Note: WebSocket uses its own origin handling via websocket.accept()
+allowed_origins = os.getenv("ALLOWED_ORIGINS", "*").split(",")
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=allowed_origins,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -128,10 +130,13 @@ async def create_session():
 async def websocket_endpoint(websocket: WebSocket, session_code: str):
     """
     WebSocket endpoint for signaling.
-
-    IMPORTANT: WebSocket connections need to call websocket.accept() FIRST
-    before any checks. CORS middleware doesn't handle WebSocket properly.
     """
+    # Origin validation for SaaS-grade security
+    origin = websocket.headers.get("origin")
+    if allowed_origins and allowed_origins[0] != "*" and origin not in allowed_origins and origin is not None:
+        await websocket.close(code=4003, reason="Origin not allowed")
+        return
+
     # IMPORTANT: Accept WebSocket connection FIRST to avoid 403 errors
     # Then do validation
     try:
