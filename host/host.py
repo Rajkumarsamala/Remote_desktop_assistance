@@ -386,7 +386,13 @@ class SystemAudioTrack(MediaStreamTrack):
         # Ensure we have exactly 960 samples for Opus encoder
         while self.fifo.samples < 960:
             try:
-                in_data = await asyncio.get_event_loop().run_in_executor(None, self.audio_queue.get)
+                # Add timeout to prevent blocking WebRTC thread if audio stream is silent
+                in_data = await asyncio.get_event_loop().run_in_executor(
+                    None, 
+                    lambda: self.audio_queue.get(timeout=0.05)
+                )
+            except queue.Empty:
+                in_data = b'\x00' * (int(self.sample_rate * 0.02) * self.channels * 2)
             except Exception:
                 await asyncio.sleep(0.02)
                 in_data = b'\x00' * (int(self.sample_rate * 0.02) * self.channels * 2)
