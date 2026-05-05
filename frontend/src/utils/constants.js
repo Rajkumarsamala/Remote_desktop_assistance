@@ -19,6 +19,9 @@ export const ICE_SERVERS = (TURN_URL && TURN_USERNAME && TURN_PASSWORD)
 
 // Determine signaling server URL dynamically (env var > fallback)
 const getSignalingUrl = () => {
+  if (import.meta.env.PROD) {
+    return 'wss://remote-view-signaling.onrender.com';
+  }
   if (import.meta.env.VITE_SIGNALING_URL) {
     return import.meta.env.VITE_SIGNALING_URL;
   }
@@ -27,6 +30,9 @@ const getSignalingUrl = () => {
 };
 
 const getApiUrl = () => {
+  if (import.meta.env.PROD) {
+    return 'https://remote-view-signaling.onrender.com';
+  }
   if (import.meta.env.VITE_API_URL) {
     return import.meta.env.VITE_API_URL;
   }
