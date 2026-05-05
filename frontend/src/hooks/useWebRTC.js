@@ -174,7 +174,8 @@ export function useWebRTC() {
         activeStreamRef.current.addTrack(event.track);
       }
       
-      setRemoteStream(activeStreamRef.current);
+      // Clone the stream so React detects the reference change and re-renders
+      setRemoteStream(new MediaStream(activeStreamRef.current.getTracks()));
 
       // Fallback for native DOM injection
       const video = document.getElementById("remoteVideo");

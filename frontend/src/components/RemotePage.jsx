@@ -81,6 +81,13 @@ function RemotePage({ webrtc, onDisconnect }) {
     }
   }, [remoteStream, screenRef])
 
+  // Fix native video muting
+  useEffect(() => {
+    if (screenRef.current) {
+      screenRef.current.muted = !hasInteracted || isMuted
+    }
+  }, [hasInteracted, isMuted, screenRef])
+
   // Header Auto-Hide Logic
   const resetHeaderTimeout = () => {
     setIsHeaderVisible(true)
@@ -354,7 +361,7 @@ function RemotePage({ webrtc, onDisconnect }) {
 
           {/* Video element */}
           <div
-            className={`w-full h-full relative bg-black/50 backdrop-blur-sm ${controlEnabled && isConnected ? 'cursor-none pointer-events-none' : 'cursor-default'}`}
+            className={`w-full h-full relative bg-black/50 backdrop-blur-sm ${controlEnabled && isConnected ? 'pointer-events-none' : 'cursor-default'}`}
             onMouseMove={resetHeaderTimeout}
           >
             {/* Note: Browsers require video to be muted to autoplay without prior user interaction */}
@@ -367,9 +374,19 @@ function RemotePage({ webrtc, onDisconnect }) {
               className={`w-full h-full object-contain drop-shadow-2xl ${controlEnabled ? 'pointer-events-auto' : 'pointer-events-none'}`}
               style={{ display: hasStream ? 'block' : 'none', touchAction: 'none' }}
               onMouseMove={controlEnabled && isConnected ? handleMouseMove : undefined}
-              onMouseDown={controlEnabled && isConnected ? handleMouseDown : undefined}
+              onMouseDown={(e) => {
+                if (controlEnabled && isConnected) {
+                  containerRef.current?.focus()
+                  if (handleMouseDown) handleMouseDown(e)
+                }
+              }}
               onMouseUp={controlEnabled && isConnected ? handleMouseUp : undefined}
-              onClick={controlEnabled && isConnected ? handleMouseDown : undefined}
+              onClick={(e) => {
+                if (controlEnabled && isConnected) {
+                  containerRef.current?.focus()
+                  if (handleMouseDown) handleMouseDown(e)
+                }
+              }}
               onTouchStart={controlEnabled && isConnected ? handleTouchStart : undefined}
               onTouchMove={controlEnabled && isConnected ? handleTouchMove : undefined}
               onTouchEnd={controlEnabled && isConnected ? handleTouchEnd : undefined}

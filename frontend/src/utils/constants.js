@@ -1,6 +1,6 @@
-const TURN_URL = import.meta.env.VITE_TURN_URL;
-const TURN_USERNAME = import.meta.env.VITE_TURN_USERNAME;
-const TURN_PASSWORD = import.meta.env.VITE_TURN_PASSWORD;
+const TURN_URL = import.meta.env.VITE_TURN_URL || "turn:openrelay.metered.ca:80";
+const TURN_USERNAME = import.meta.env.VITE_TURN_USERNAME || "openrelayproject";
+const TURN_PASSWORD = import.meta.env.VITE_TURN_PASSWORD || "openrelayproject";
 
 const baseIceServers = [
   { urls: "stun:stun.l.google.com:19302" }
